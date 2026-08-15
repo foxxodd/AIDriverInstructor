@@ -1,0 +1,70 @@
+{
+  "versions": {
+    "schema": 1,
+    "data": 1
+  },
+  "id": "wrc_ai_instructor",
+  "header": {
+    "channels": []
+  },
+  "packets": [
+    {
+      "id": "session_update",
+      "channels": [
+        "packet_uid",
+        "game_total_time",
+        "game_delta_time",
+        "game_frame_count",
+        "vehicle_gear_index",
+        "vehicle_speed",
+        "vehicle_transmission_speed",
+        "vehicle_position_x",
+        "vehicle_position_y",
+        "vehicle_position_z",
+        "vehicle_velocity_x",
+        "vehicle_velocity_y",
+        "vehicle_velocity_z",
+        "vehicle_acceleration_x",
+        "vehicle_acceleration_y",
+        "vehicle_acceleration_z",
+        "vehicle_left_direction_x",
+        "vehicle_left_direction_y",
+        "vehicle_left_direction_z",
+        "vehicle_forward_direction_x",
+        "vehicle_forward_direction_y",
+        "vehicle_forward_direction_z",
+        "vehicle_up_direction_x",
+        "vehicle_up_direction_y",
+        "vehicle_up_direction_z",
+        "vehicle_cp_forward_speed_bl",
+        "vehicle_cp_forward_speed_br",
+        "vehicle_cp_forward_speed_fl",
+        "vehicle_cp_forward_speed_fr",
+        "vehicle_engine_rpm_current",
+        "vehicle_throttle",
+        "vehicle_brake",
+        "vehicle_clutch",
+        "vehicle_steering",
+        "vehicle_handbrake",
+        "stage_current_time",
+        "stage_current_distance",
+        "stage_length",
+        "stage_progress",
+        "stage_result_time",
+        "stage_result_time_penalty",
+        "stage_result_status",
+        "vehicle_tyre_state_bl",
+        "vehicle_tyre_state_br",
+        "vehicle_tyre_state_fl",
+        "vehicle_tyre_state_fr",
+        "game_mode",
+        "vehicle_id",
+        "vehicle_class_id",
+        "vehicle_manufacturer_id",
+        "location_id",
+        "route_id"
+      ]
+    }
+  ]
+}
+
