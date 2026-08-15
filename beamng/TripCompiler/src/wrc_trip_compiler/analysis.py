@@ -51,7 +51,9 @@ def normalize_packets(packets: Iterable[Mapping[str, Scalar]]) -> list[Normalize
         stage_time = _number(channels, "stage_current_time")
         if first_game_time is None:
             first_game_time = game_time
-        time_s = stage_time if stage_time > 0 else game_time - first_game_time
+        time_s = (
+            game_time - first_game_time if "game_total_time" in channels else max(0.0, stage_time)
+        )
 
         velocity = _vector(channels, "vehicle_velocity")
         acceleration = _vector(channels, "vehicle_acceleration")
@@ -84,6 +86,7 @@ def normalize_packets(packets: Iterable[Mapping[str, Scalar]]) -> list[Normalize
         result.append(
             NormalizedSample(
                 time_s=time_s,
+                stage_time_s=stage_time,
                 packet_uid=_integer(channels, "packet_uid"),
                 frame=_integer(channels, "game_frame_count"),
                 speed_mps=speed,

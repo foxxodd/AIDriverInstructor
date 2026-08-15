@@ -36,6 +36,10 @@ unit vectors to obtain longitudinal, lateral, and vertical acceleration. Heading
 `atan2(forward_x, forward_z)`. Slip angle compares the velocity vector with the car's forward
 direction.
 
+`time_s` is monotonic time since the first captured game frame. `stage_time_s` preserves EA's
+stage clock, including countdown/result-screen behavior. Keeping both avoids a time reset at
+the start line and supports later video synchronization.
+
 These positions are local game-world metres, not latitude/longitude.
 
 ## Event rules
@@ -62,4 +66,3 @@ not partially decoded. Schema or JSONL errors fail with file and line context.
 The standard `wrc` layout is backward-compatible but lacks newer channels. A custom layout is
 used so capture and decoder share an explicit field contract. If EA changes a channel type,
 `validate` detects the resulting schema problem before recording.
-

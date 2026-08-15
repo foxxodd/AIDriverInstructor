@@ -23,6 +23,7 @@ class NormalizedSample:
     """Stable TripCompiler row derived from one WRC update packet."""
 
     time_s: float
+    stage_time_s: float
     packet_uid: int
     frame: int
     speed_mps: float

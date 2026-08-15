@@ -84,6 +84,7 @@ def compile_trip(
     expected_packets = len(samples) + estimated_dropped
     event_counts = dict(sorted(Counter(event.event_type for event in events).items()))
     speeds = [sample.speed_mps for sample in samples]
+    final_channels = packets[-1]
     summary: dict[str, Any] = {
         "schema_version": 1,
         "source": "ea_sports_wrc_udp",
@@ -95,6 +96,18 @@ def compile_trip(
         "max_speed_kph": max(speeds) * 3.6,
         "mean_speed_kph": fmean(speeds) * 3.6,
         "max_engine_rpm": max(sample.engine_rpm for sample in samples),
+        "session": {
+            "game_mode": final_channels.get("game_mode"),
+            "vehicle_id": final_channels.get("vehicle_id"),
+            "vehicle_class_id": final_channels.get("vehicle_class_id"),
+            "vehicle_manufacturer_id": final_channels.get("vehicle_manufacturer_id"),
+            "location_id": final_channels.get("location_id"),
+            "route_id": final_channels.get("route_id"),
+            "stage_length_m": final_channels.get("stage_length"),
+            "stage_result_time_s": final_channels.get("stage_result_time"),
+            "stage_penalty_s": final_channels.get("stage_result_time_penalty"),
+            "stage_result_status": final_channels.get("stage_result_status"),
+        },
         "events": len(events),
         "event_counts": event_counts,
         "data_quality": {
