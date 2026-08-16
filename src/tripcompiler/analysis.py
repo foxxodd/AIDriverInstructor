@@ -6,7 +6,7 @@ import math
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 
-from wrc_trip_compiler.models import AnalysisConfig, DrivingEvent, NormalizedSample, Scalar
+from tripcompiler.models import AnalysisConfig, DrivingEvent, NormalizedSample, Scalar
 
 Vector3 = tuple[float, float, float]
 
@@ -136,19 +136,28 @@ def _rules(config: AnalysisConfig) -> tuple[_Rule, ...]:
             "hard_braking",
             abs(config.hard_braking_mps2),
             lambda sample: abs(min(0.0, sample.longitudinal_accel_mps2)),
-            lambda sample: sample.longitudinal_accel_mps2 <= config.hard_braking_mps2,
+            lambda sample: (
+                sample.longitudinal_accel_mps2 <= config.hard_braking_mps2
+                and sample.speed_mps >= config.longitudinal_event_min_speed_mps
+            ),
         ),
         _Rule(
             "hard_acceleration",
             config.hard_acceleration_mps2,
             lambda sample: max(0.0, sample.longitudinal_accel_mps2),
-            lambda sample: sample.longitudinal_accel_mps2 >= config.hard_acceleration_mps2,
+            lambda sample: (
+                sample.longitudinal_accel_mps2 >= config.hard_acceleration_mps2
+                and sample.speed_mps >= config.longitudinal_event_min_speed_mps
+            ),
         ),
         _Rule(
             "high_lateral_acceleration",
             config.high_lateral_accel_mps2,
             lambda sample: abs(sample.lateral_accel_mps2),
-            lambda sample: abs(sample.lateral_accel_mps2) >= config.high_lateral_accel_mps2,
+            lambda sample: (
+                abs(sample.lateral_accel_mps2) >= config.high_lateral_accel_mps2
+                and sample.speed_mps >= config.high_lateral_min_speed_mps
+            ),
         ),
         _Rule(
             "handbrake_at_speed",

@@ -1,4 +1,4 @@
-"""Command-line interface for WRC capture and TripCompiler."""
+"""Unified command-line interface for OBD and WRC trip data."""
 
 from __future__ import annotations
 
@@ -8,10 +8,11 @@ from dataclasses import asdict
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
+from typing import cast
 
-from wrc_trip_compiler.capture import capture_udp
-from wrc_trip_compiler.compiler import compile_trip
-from wrc_trip_compiler.schema import PacketDecoder, load_decoder
+from tripcompiler.capture import capture_udp
+from tripcompiler.compiler import SourceKind, compile_trip
+from tripcompiler.schema import PacketDecoder, load_decoder
 
 
 def _default_telemetry_dir() -> Path:
@@ -19,7 +20,7 @@ def _default_telemetry_dir() -> Path:
 
 
 def _default_structure() -> Path:
-    resource = files("wrc_trip_compiler").joinpath("config/wrc_ai_instructor.json")
+    resource = files("tripcompiler").joinpath("config/wrc_ai_instructor.json")
     return Path(str(resource))
 
 
@@ -36,6 +37,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     print(
         json.dumps(
             {
+                "source": "wrc",
                 "packet_id": decoder.packet_id,
                 "packet_size": decoder.size,
                 "field_count": len(decoder.fields),
@@ -65,9 +67,10 @@ def _cmd_record(args: argparse.Namespace) -> int:
 
 
 def _cmd_compile(args: argparse.Namespace) -> int:
-    capture_path = Path(args.capture)
-    output = Path(args.output) if args.output else Path("compiled_trips") / capture_path.parent.name
-    summary = compile_trip(capture_path, output)
+    source = cast(SourceKind, args.source)
+    input_path = Path(args.input)
+    output = Path(args.output) if args.output else _default_compiled_dir(source, input_path)
+    summary = compile_trip(source, input_path, output)
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
 
@@ -75,6 +78,11 @@ def _cmd_compile(args: argparse.Namespace) -> int:
 def _default_capture_dir() -> Path:
     stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
     return Path("drive_logs") / "wrc" / stamp
+
+
+def _default_compiled_dir(source: SourceKind, input_path: Path) -> Path:
+    session_name = input_path.parent.name if source == "wrc" else input_path.stem
+    return Path("compiled_trips") / f"{source}_{session_name}"
 
 
 def _add_schema_arguments(parser: argparse.ArgumentParser) -> None:
@@ -92,15 +100,22 @@ def _add_schema_arguments(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="wrc-trip", description="EA Sports WRC UDP recorder and TripCompiler"
+        prog="tripcompiler",
+        description="Compile OBD or EA Sports WRC data into a common trip report",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    validate = sub.add_parser("validate", help="Validate EA channel and packet schemas")
+    compile_command = sub.add_parser("compile", help="Compile OBD CSV or WRC JSONL")
+    compile_command.add_argument("source", choices=("obd", "wrc"), help="Input data source")
+    compile_command.add_argument("input", help="Car Scanner CSV or WRC telemetry.jsonl")
+    compile_command.add_argument("--output", help="New output directory")
+    compile_command.set_defaults(func=_cmd_compile)
+
+    validate = sub.add_parser("validate-wrc", help="Validate EA WRC channel and packet schemas")
     _add_schema_arguments(validate)
     validate.set_defaults(func=_cmd_validate)
 
-    record = sub.add_parser("record", help="Record UDP packets until Ctrl+C")
+    record = sub.add_parser("record-wrc", help="Record WRC UDP packets until Ctrl+C")
     _add_schema_arguments(record)
     record.add_argument("--host", default="127.0.0.1")
     record.add_argument("--port", type=int, default=20779)
@@ -108,11 +123,6 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--max-packets", type=int, help="Optional decoded packet limit")
     record.add_argument("--output", help="New session directory; defaults to drive_logs/wrc/<time>")
     record.set_defaults(func=_cmd_record)
-
-    compile_command = sub.add_parser("compile", help="Compile a telemetry.jsonl capture")
-    compile_command.add_argument("capture", help="Raw telemetry.jsonl")
-    compile_command.add_argument("--output", help="New output directory")
-    compile_command.set_defaults(func=_cmd_compile)
     return parser
 
 

@@ -18,4 +18,3 @@ test:
 	python -m pytest
 
 check: lint typecheck test
-

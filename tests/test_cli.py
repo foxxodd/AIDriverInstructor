@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from wrc_trip_compiler.cli import main
+from tripcompiler.cli import main
 
 
 def _schemas(tmp_path: Path) -> tuple[Path, Path]:
@@ -37,8 +37,8 @@ def test_validate_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsy
         sys,
         "argv",
         [
-            "wrc-trip",
-            "validate",
+            "tripcompiler",
+            "validate-wrc",
             "--telemetry-dir",
             str(telemetry),
             "--structure",
@@ -61,7 +61,7 @@ def test_compile_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(
         sys,
         "argv",
-        ["wrc-trip", "compile", str(capture), "--output", str(output)],
+        ["tripcompiler", "compile", "wrc", str(capture), "--output", str(output)],
     )
     assert main() == 0
     assert (output / "summary.json").is_file()

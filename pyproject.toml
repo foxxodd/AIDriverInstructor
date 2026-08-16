@@ -3,9 +3,9 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wrc-trip-compiler"
+name = "ai-driver-tripcompiler"
 version = "0.1.0"
-description = "Capture and analyze EA Sports WRC UDP telemetry."
+description = "Compile OBD and EA Sports WRC data into a common driving analysis."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = { text = "MIT" }
@@ -22,13 +22,13 @@ dev = [
 ]
 
 [project.scripts]
-wrc-trip = "wrc_trip_compiler.cli:main"
+tripcompiler = "tripcompiler.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-wrc_trip_compiler = ["config/*.json"]
+tripcompiler = ["config/*.json"]
 
 [tool.ruff]
 target-version = "py310"
@@ -46,15 +46,16 @@ indent-style = "space"
 python_version = "3.10"
 strict = true
 warn_unused_configs = true
-packages = ["wrc_trip_compiler"]
+packages = ["tripcompiler"]
 mypy_path = "src"
 
 [tool.pytest.ini_options]
-addopts = "-ra --strict-markers --strict-config --basetemp=.codex-pytest-tmp --cov=wrc_trip_compiler --cov-report=term-missing --cov-fail-under=75"
+addopts = "-ra --strict-markers --strict-config --basetemp=.codex-pytest-tmp --cov=tripcompiler --cov-report=term-missing --cov-fail-under=75"
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.coverage.run]
-source = ["wrc_trip_compiler"]
+source = ["tripcompiler"]
 branch = true
 
 [tool.coverage.report]

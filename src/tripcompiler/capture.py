@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TextIO
 
-from wrc_trip_compiler.schema import PacketDecoder, PacketSizeError
+from tripcompiler.schema import PacketDecoder, PacketSizeError
 
 
 @dataclass(frozen=True, slots=True)

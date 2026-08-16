@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from wrc_trip_compiler.compiler import CaptureFormatError, compile_trip, load_capture
+from tripcompiler.compiler import CaptureFormatError, compile_trip, load_capture
 
 
 def _record(uid: int, time_s: float, accel_z: float = 0.0) -> dict[str, object]:
@@ -38,7 +38,7 @@ def test_compile_trip_creates_complete_artifact_set(tmp_path: Path) -> None:
     _write_capture(capture)
     output = tmp_path / "compiled"
 
-    summary = compile_trip(capture, output)
+    summary = compile_trip("wrc", capture, output)
 
     assert summary["samples"] == 3
     assert summary["data_quality"]["estimated_dropped_packets"] == 1
@@ -49,6 +49,8 @@ def test_compile_trip_creates_complete_artifact_set(tmp_path: Path) -> None:
         "events.json",
         "summary.json",
         "report.html",
+        "script_ai.json",
+        "road_centerline.json",
     }
     with (output / "telemetry.csv").open(encoding="utf-8") as stream:
         rows = list(csv.DictReader(stream))
@@ -57,7 +59,7 @@ def test_compile_trip_creates_complete_artifact_set(tmp_path: Path) -> None:
     assert "hard_braking" in (output / "report.html").read_text(encoding="utf-8")
 
     with pytest.raises(FileExistsError):
-        compile_trip(capture, output)
+        compile_trip("wrc", capture, output)
 
 
 @pytest.mark.parametrize(

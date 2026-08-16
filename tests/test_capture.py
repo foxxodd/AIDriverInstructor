@@ -9,9 +9,9 @@ from typing import Any
 
 import pytest
 
-from wrc_trip_compiler.capture import JsonlCaptureWriter, capture_udp
-from wrc_trip_compiler.models import FieldSpec
-from wrc_trip_compiler.schema import PacketDecoder
+from tripcompiler.capture import JsonlCaptureWriter, capture_udp
+from tripcompiler.models import FieldSpec
+from tripcompiler.schema import PacketDecoder
 
 
 def _decoder() -> PacketDecoder:
@@ -64,7 +64,7 @@ class _FakeSocket:
 def test_capture_udp_counts_malformed_and_writes_stats(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("wrc_trip_compiler.capture.socket.socket", _FakeSocket)
+    monkeypatch.setattr("tripcompiler.capture.socket.socket", _FakeSocket)
     output = tmp_path / "session"
 
     stats = capture_udp(_decoder(), output, max_packets=1)

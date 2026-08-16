@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from wrc_trip_compiler.models import FieldSpec, Scalar
+from tripcompiler.models import FieldSpec, Scalar
 
 _STRUCT_CODES = {
     "boolean": "?",

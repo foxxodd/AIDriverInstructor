@@ -20,7 +20,7 @@ class FieldSpec:
 
 @dataclass(frozen=True, slots=True)
 class NormalizedSample:
-    """Stable TripCompiler row derived from one WRC update packet."""
+    """Stable TripCompiler row shared by WRC and OBD inputs."""
 
     time_s: float
     stage_time_s: float
@@ -81,7 +81,9 @@ class AnalysisConfig:
 
     hard_braking_mps2: float = -6.0
     hard_acceleration_mps2: float = 5.0
+    longitudinal_event_min_speed_mps: float = 3.0
     high_lateral_accel_mps2: float = 7.0
+    high_lateral_min_speed_mps: float = 5.0
     handbrake_min: float = 0.5
     handbrake_min_speed_mps: float = 5.0
     slip_angle_deg: float = 20.0

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from wrc_trip_compiler.analysis import detect_events, normalize_packets
+from tripcompiler.analysis import detect_events, normalize_packets
 
 
 def _packet(

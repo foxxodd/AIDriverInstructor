@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from wrc_trip_compiler.schema import PacketSizeError, SchemaError, load_decoder
+from tripcompiler.schema import PacketSizeError, SchemaError, load_decoder
 
 
 def _write_json(path: Path, value: object) -> None:

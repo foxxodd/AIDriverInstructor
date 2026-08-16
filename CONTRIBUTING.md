@@ -13,4 +13,3 @@ Before committing, run `python -m ruff check .`, `python -m ruff format --check 
 
 Use short-lived branches and Conventional Commit messages such as `feat: add UDP capture`.
 Never commit captures from `drive_logs/` or generated files from `compiled_trips/`.
-
