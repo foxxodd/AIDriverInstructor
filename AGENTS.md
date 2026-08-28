@@ -4,43 +4,43 @@ This is the local working directory for AI Driving Instructor.
 
 ## Project instructions
 
-Проект: AI Driving Instructor
+Project: AI Driving Instructor
 
-Цель:
-Создать систему ИИ-инструктора для обычных водителей, автошкол, курсов повышения водительского мастерства и автоспорта.
+Goal:
+Build an AI driving instructor system for everyday drivers, driving schools, advanced driving courses, and motorsport.
 
-Система должна:
-— собирать OBD-II, GPS, IMU и видеоданные;
-— синхронизировать телеметрию по времени;
-— хранить историю поездок;
-— обнаруживать резкие торможения, ускорения, опасные повороты и ошибки водителя;
-— формировать понятный разбор поездки;
-— сравнивать поездки и прогресс водителя;
-— синхронизировать события с видеозаписью;
-— поддерживать воспроизведение и моделирование поездки в BeamNG;
-— позже давать голосовые рекомендации в реальном времени.
+The system must:
+— collect OBD-II, GPS, IMU, and video data;
+— synchronize telemetry by timestamp;
+— retain trip history;
+— detect harsh braking, rapid acceleration, dangerous cornering, and driver errors;
+— generate an understandable post-trip analysis;
+— compare trips and driver progress;
+— synchronize events with video recordings;
+— support trip playback and simulation in BeamNG;
+— provide real-time voice guidance at a later stage.
 
-Первый автомобиль:
-Toyota Land Cruiser Prado 150, дизель, 2021 год.
+Initial vehicle:
+2021 Toyota Land Cruiser Prado 150, diesel.
 
-Имеющееся оборудование:
+Available hardware:
 — Raspberry Pi 5;
-— головное устройство Teyes 360;
-— видеорегистратор;
-— планируется Vgate vLinker MC+.
+— Teyes 360 head unit;
+— dashboard camera;
+— Vgate vLinker MC+ planned.
 
-Настройки:
+Settings:
 
-- Исходные логи находятся в `drive_logs/`.
-- Не изменять исходные CSV.
-- Код единого TripCompiler хранить в корне проекта; источник выбирать аргументом `obd` или `wrc`.
-- Результаты обработки сохранять в `compiled_trips/`.
-- Использовать Python 3.10.
-- Перед упаковкой запускать тесты.
+- Source logs are stored in `drive_logs/`.
+- Do not modify source CSV files.
+- Keep the unified TripCompiler code at the project root; select the source with the `obd` or `wrc` argument.
+- Store processing results in `compiled_trips/`.
+- Use Python 3.10.
+- Run tests before packaging.
 
 
-Приоритет первого MVP:
-запись OBD-II + GPS, построение отчёта после поездки и автоматическое выделение важных событий.
+First MVP priority:
+Record OBD-II and GPS data, generate a post-trip report, and automatically identify significant events.
 
-Стиль работы:
-конкретные инженерные решения, архитектура, код, схемы данных, оценка сложности и стоимости; без лишней мотивационной риторики.
+Working style:
+Provide concrete engineering decisions, architecture, code, data schemas, and complexity and cost estimates; avoid unnecessary motivational language.

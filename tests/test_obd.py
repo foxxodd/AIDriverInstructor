@@ -22,12 +22,27 @@ def _write_obd(path: Path) -> None:
         }
         rows.extend(
             [
-                {**common, "PID": "Высота (GPS)", "VALUE": 100.0 + index, "UNITS": "m"},
-                {**common, "PID": "Скорость (GPS)", "VALUE": speed, "UNITS": "km/h"},
-                {**common, "PID": "Обороты двигателя", "VALUE": rpm, "UNITS": "rpm"},
                 {
                     **common,
-                    "PID": "Положение педали акселератора E",
+                    "PID": "\u0412\u044b\u0441\u043e\u0442\u0430 (GPS)",
+                    "VALUE": 100.0 + index,
+                    "UNITS": "m",
+                },
+                {
+                    **common,
+                    "PID": "\u0421\u043a\u043e\u0440\u043e\u0441\u0442\u044c (GPS)",
+                    "VALUE": speed,
+                    "UNITS": "km/h",
+                },
+                {
+                    **common,
+                    "PID": "\u041e\u0431\u043e\u0440\u043e\u0442\u044b \u0434\u0432\u0438\u0433\u0430\u0442\u0435\u043b\u044f",
+                    "VALUE": rpm,
+                    "UNITS": "rpm",
+                },
+                {
+                    **common,
+                    "PID": "\u041f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u043f\u0435\u0434\u0430\u043b\u0438 \u0430\u043a\u0441\u0435\u043b\u0435\u0440\u0430\u0442\u043e\u0440\u0430 E",
                     "VALUE": 50.0,
                     "UNITS": "%",
                 },
@@ -37,7 +52,7 @@ def _write_obd(path: Path) -> None:
             rows.append(
                 {
                     **common,
-                    "PID": "Боковая составляющая ускорения",
+                    "PID": "\u0411\u043e\u043a\u043e\u0432\u0430\u044f \u0441\u043e\u0441\u0442\u0430\u0432\u043b\u044f\u044e\u0449\u0430\u044f \u0443\u0441\u043a\u043e\u0440\u0435\u043d\u0438\u044f",
                     "VALUE": 2.0,
                     "UNITS": "g",
                 }
@@ -74,8 +89,16 @@ def test_import_obd_normalizes_gps_signals_and_catalog(tmp_path: Path) -> None:
         "gps_speed",
         "throttle",
     ]
-    assert canonical_pid("Скорость автомобиля") == "vehicle_speed"
-    assert canonical_pid("Неизвестный PID") is None
+    assert (
+        canonical_pid(
+            "\u0421\u043a\u043e\u0440\u043e\u0441\u0442\u044c \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0438\u043b\u044f"
+        )
+        == "vehicle_speed"
+    )
+    assert (
+        canonical_pid("\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0439 PID")
+        is None
+    )
 
 
 def test_compile_obd_uses_common_output_and_audit_files(tmp_path: Path) -> None:
@@ -106,8 +129,8 @@ def test_obd_without_gps_uses_speed_timeline(tmp_path: Path) -> None:
     source = tmp_path / "speed_only.csv"
     source.write_text(
         "SECONDS;PID;VALUE;UNITS;LATITUDE;LONGTITUDE\n"
-        "1;Скорость (GPS);0;km/h;0;0\n"
-        "2;Скорость (GPS);36;km/h;0;0\n",
+        "1;\u0421\u043a\u043e\u0440\u043e\u0441\u0442\u044c (GPS);0;km/h;0;0\n"
+        "2;\u0421\u043a\u043e\u0440\u043e\u0441\u0442\u044c (GPS);36;km/h;0;0\n",
         encoding="utf-8",
     )
     result = import_obd_trip(source)

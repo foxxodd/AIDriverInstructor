@@ -45,27 +45,94 @@ class ObdImportResult:
 
 
 _ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("gps_altitude", (r"^Высота \(GPS\)$", r"GPS.*Altitude")),
-    ("gps_speed", (r"^Скорость \(GPS\)$", r"GPS.*Speed")),
-    ("vehicle_speed", (r"^Скорость автомобиля$", r"Vehicle.*Speed")),
-    ("engine_rpm", (r"^Обороты двигателя$", r"^Engine.*RPM")),
+    ("gps_altitude", (r"^\u0412\u044b\u0441\u043e\u0442\u0430 \(GPS\)$", r"GPS.*Altitude")),
+    ("gps_speed", (r"^\u0421\u043a\u043e\u0440\u043e\u0441\u0442\u044c \(GPS\)$", r"GPS.*Speed")),
+    (
+        "vehicle_speed",
+        (
+            r"^\u0421\u043a\u043e\u0440\u043e\u0441\u0442\u044c \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0438\u043b\u044f$",
+            r"Vehicle.*Speed",
+        ),
+    ),
+    (
+        "engine_rpm",
+        (
+            r"^\u041e\u0431\u043e\u0440\u043e\u0442\u044b \u0434\u0432\u0438\u0433\u0430\u0442\u0435\u043b\u044f$",
+            r"^Engine.*RPM",
+        ),
+    ),
     (
         "throttle",
         (
-            r"^Положение педали акселератора",
-            r"^Положение дроссельной заслонки$",
+            r"^\u041f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u043f\u0435\u0434\u0430\u043b\u0438 \u0430\u043a\u0441\u0435\u043b\u0435\u0440\u0430\u0442\u043e\u0440\u0430",
+            r"^\u041f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u0434\u0440\u043e\u0441\u0441\u0435\u043b\u044c\u043d\u043e\u0439 \u0437\u0430\u0441\u043b\u043e\u043d\u043a\u0438$",
             r"Throttle",
         ),
     ),
-    ("brake", (r"выключателя стоп-сигнала", r"Brake.*Switch")),
-    ("steering", (r"Угол поворота рулевого колеса", r"Steering.*Angle")),
-    ("longitudinal_accel", (r"Продольная составляющая ускорения", r"Longitudinal.*Accel")),
-    ("lateral_accel", (r"Боковая составляющая ускорения", r"Lateral.*Accel")),
-    ("yaw_rate", (r"^Значение рыскания$", r"^Датчик рыскания$", r"Yaw.*Rate")),
-    ("wheel_speed_bl", (r"левого заднего колеса", r"Rear Left.*Wheel.*Speed")),
-    ("wheel_speed_br", (r"правого заднего колеса", r"Rear Right.*Wheel.*Speed")),
-    ("wheel_speed_fl", (r"левого переднего колеса", r"Front Left.*Wheel.*Speed")),
-    ("wheel_speed_fr", (r"правого переднего колеса", r"Front Right.*Wheel.*Speed")),
+    (
+        "brake",
+        (
+            r"\u0432\u044b\u043a\u043b\u044e\u0447\u0430\u0442\u0435\u043b\u044f \u0441\u0442\u043e\u043f-\u0441\u0438\u0433\u043d\u0430\u043b\u0430",
+            r"Brake.*Switch",
+        ),
+    ),
+    (
+        "steering",
+        (
+            r"\u0423\u0433\u043e\u043b \u043f\u043e\u0432\u043e\u0440\u043e\u0442\u0430 \u0440\u0443\u043b\u0435\u0432\u043e\u0433\u043e \u043a\u043e\u043b\u0435\u0441\u0430",
+            r"Steering.*Angle",
+        ),
+    ),
+    (
+        "longitudinal_accel",
+        (
+            r"\u041f\u0440\u043e\u0434\u043e\u043b\u044c\u043d\u0430\u044f \u0441\u043e\u0441\u0442\u0430\u0432\u043b\u044f\u044e\u0449\u0430\u044f \u0443\u0441\u043a\u043e\u0440\u0435\u043d\u0438\u044f",
+            r"Longitudinal.*Accel",
+        ),
+    ),
+    (
+        "lateral_accel",
+        (
+            r"\u0411\u043e\u043a\u043e\u0432\u0430\u044f \u0441\u043e\u0441\u0442\u0430\u0432\u043b\u044f\u044e\u0449\u0430\u044f \u0443\u0441\u043a\u043e\u0440\u0435\u043d\u0438\u044f",
+            r"Lateral.*Accel",
+        ),
+    ),
+    (
+        "yaw_rate",
+        (
+            r"^\u0417\u043d\u0430\u0447\u0435\u043d\u0438\u0435 \u0440\u044b\u0441\u043a\u0430\u043d\u0438\u044f$",
+            r"^\u0414\u0430\u0442\u0447\u0438\u043a \u0440\u044b\u0441\u043a\u0430\u043d\u0438\u044f$",
+            r"Yaw.*Rate",
+        ),
+    ),
+    (
+        "wheel_speed_bl",
+        (
+            r"\u043b\u0435\u0432\u043e\u0433\u043e \u0437\u0430\u0434\u043d\u0435\u0433\u043e \u043a\u043e\u043b\u0435\u0441\u0430",
+            r"Rear Left.*Wheel.*Speed",
+        ),
+    ),
+    (
+        "wheel_speed_br",
+        (
+            r"\u043f\u0440\u0430\u0432\u043e\u0433\u043e \u0437\u0430\u0434\u043d\u0435\u0433\u043e \u043a\u043e\u043b\u0435\u0441\u0430",
+            r"Rear Right.*Wheel.*Speed",
+        ),
+    ),
+    (
+        "wheel_speed_fl",
+        (
+            r"\u043b\u0435\u0432\u043e\u0433\u043e \u043f\u0435\u0440\u0435\u0434\u043d\u0435\u0433\u043e \u043a\u043e\u043b\u0435\u0441\u0430",
+            r"Front Left.*Wheel.*Speed",
+        ),
+    ),
+    (
+        "wheel_speed_fr",
+        (
+            r"\u043f\u0440\u0430\u0432\u043e\u0433\u043e \u043f\u0435\u0440\u0435\u0434\u043d\u0435\u0433\u043e \u043a\u043e\u043b\u0435\u0441\u0430",
+            r"Front Right.*Wheel.*Speed",
+        ),
+    ),
 )
 
 

@@ -1,30 +1,30 @@
 # TripCompiler
 
-Единый Python 3.10-проект для послепоездочного анализа двух типов данных:
+A unified Python 3.10 project for post-trip analysis of two input formats:
 
-- `obd` — длинный CSV, экспортированный из Car Scanner (`OBD-II + GPS`);
-- `wrc` — JSONL, записанный из официальной UDP-телеметрии EA Sports WRC на ПК.
+- `obd` — long-form CSV exported by Car Scanner (`OBD-II + GPS`);
+- `wrc` — JSONL captured from the official EA Sports WRC UDP telemetry interface on PC.
 
-Весь проект находится в корне репозитория. Отдельных WRC- и OBD-компиляторов нет:
-источник является обязательным аргументом одной команды `tripcompiler compile`.
+The entire project resides at the repository root. There are no separate WRC and OBD compilers:
+the source is a required argument of the single `tripcompiler compile` command.
 
-## Структура
+## Structure
 
 ```text
 src/tripcompiler/
-  cli.py          единый CLI
-  compiler.py     диспетчер источников и общий формат результатов
-  obd.py          адаптер Car Scanner CSV
-  capture.py      запись WRC UDP
-  schema.py       декодирование настраиваемого пакета WRC
-  analysis.py     общая нормализация WRC и детекторы событий
+  cli.py          unified CLI
+  compiler.py     source dispatcher and common result format
+  obd.py          Car Scanner CSV adapter
+  capture.py      WRC UDP capture
+  schema.py       configurable WRC packet decoder
+  analysis.py     common WRC normalization and event detectors
 tests/
 docs/
-drive_logs/       исходные записи, не изменяются и не коммитятся
-compiled_trips/   результаты, не коммитятся
+drive_logs/       immutable source captures, excluded from Git
+compiled_trips/   generated results, excluded from Git
 ```
 
-## Установка
+## Installation
 
 ```powershell
 cd C:\projects\AIDriverInstructor
@@ -34,32 +34,32 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-## Компиляция OBD
+## Compiling OBD data
 
 ```powershell
 tripcompiler compile obd "drive_logs\2026-07-29 16-27-48.csv" `
   --output "compiled_trips\obd_2026-07-29"
 ```
 
-OBD-адаптер:
+The OBD adapter:
 
-- читает CSV с разделителем `;` и колонками `SECONDS`, `PID`, `VALUE`, `UNITS`,
-  `LATITUDE`, `LONGTITUDE`;
-- поддерживает UTF-8/UTF-8 BOM и CP1251;
-- преобразует GPS в локальные метры;
-- нормализует скорость, RPM, акселератор, тормоз, ускорения и скорости колёс;
-- сохраняет каталог PID и распознанные исходные динамические сигналы;
-- никогда не изменяет исходный CSV.
+- reads semicolon-delimited CSV with `SECONDS`, `PID`, `VALUE`, `UNITS`,
+  `LATITUDE`, and `LONGTITUDE` columns;
+- supports UTF-8, UTF-8 with BOM, and CP1251;
+- converts GPS coordinates to local metres;
+- normalizes speed, RPM, accelerator, brake, acceleration, and wheel-speed signals;
+- preserves a PID catalog and recognized raw dynamic signals;
+- never modifies the source CSV.
 
-## Настройка и запись WRC
+## Configuring and recording WRC
 
-После первого запуска игра создаёт каталог
+After the first game launch, EA Sports WRC creates
 `%USERPROFILE%\Documents\My Games\WRC\telemetry`.
 
-1. Скопировать
-   `src\tripcompiler\config\wrc_ai_instructor.json` в
+1. Copy
+   `src\tripcompiler\config\wrc_ai_instructor.json` to
    `%USERPROFILE%\Documents\My Games\WRC\telemetry\udp\wrc_ai_instructor.json`.
-2. Добавить в массив `udp.packets` файла игры `config.json`:
+2. Add the following entry to the `udp.packets` array in the game's `config.json`:
 
 ```json
 {
@@ -72,49 +72,49 @@ OBD-адаптер:
 }
 ```
 
-3. Проверить соответствие схемы текущей версии игры:
+3. Validate the schema against the installed game version:
 
 ```powershell
 tripcompiler validate-wrc
 ```
 
-4. Запустить запись до входа на спецучасток и остановить Ctrl+C после финиша:
+4. Start recording before entering the stage and stop with Ctrl+C after the finish:
 
 ```powershell
 tripcompiler record-wrc
 ```
 
-По умолчанию запись создаётся в `drive_logs/wrc/<дата_время>/`.
+By default, captures are stored in `drive_logs/wrc/<timestamp>/`.
 
-5. Скомпилировать её тем же TripCompiler:
+5. Compile the capture with the same TripCompiler:
 
 ```powershell
 tripcompiler compile wrc "drive_logs\wrc\20260816_120000\telemetry.jsonl" `
   --output "compiled_trips\wrc_20260816_120000"
 ```
 
-## Общий формат результатов
+## Common output format
 
-Для обоих источников создаются:
+Both sources produce:
 
-- `telemetry.csv` — единая нормализованная схема;
-- `events.json` — интервалы обнаруженных событий;
-- `summary.json` — метрики поездки и качество данных;
-- `report.html` — автономный отчёт.
-- `script_ai.json` — общая траектория для последующей адаптации к BeamNG ScriptAI;
-- `road_centerline.json` — локальная ось маршрута в метрах.
+- `telemetry.csv` — unified normalized telemetry schema;
+- `events.json` — detected event intervals;
+- `summary.json` — trip metrics and data-quality information;
+- `report.html` — standalone report;
+- `script_ai.json` — common trajectory for subsequent BeamNG ScriptAI adaptation;
+- `road_centerline.json` — local route centerline in metres.
 
-Для OBD дополнительно создаются:
+OBD compilation additionally produces:
 
-- `pid_catalog.csv` — список всех PID, частота и сопоставление с общей схемой;
-- `vehicle_dynamics_raw.csv` — распознанные исходные измерения без перезаписи CSV.
+- `pid_catalog.csv` — complete PID inventory, frequency, and common-schema mapping;
+- `vehicle_dynamics_raw.csv` — recognized source measurements without rewriting the CSV.
 
-Общие детекторы отмечают резкое торможение/ускорение, высокое боковое ускорение,
-ручник на скорости, большой угол скольжения, пробуксовку и одновременный газ с тормозом.
-Пороговые значения являются начальными и требуют отдельной калибровки для реальной дороги
-и раллийного симулятора.
+Common detectors identify harsh braking and acceleration, high lateral acceleration,
+handbrake use at speed, large slip angles, wheelspin, and simultaneous brake and throttle.
+The default thresholds are initial engineering values and require separate calibration for
+real-road driving and the rally simulator.
 
-## Проверки качества
+## Quality checks
 
 ```powershell
 python -m ruff check .
@@ -123,6 +123,6 @@ python -m mypy src
 python -m pytest
 ```
 
-Минимальное покрытие — 75%. Те же проверки запускаются GitHub Actions на Python 3.10.
-Подробности формата времени, координат и обработки потерь находятся в
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Minimum test coverage is 75%. GitHub Actions runs the same checks on Python 3.10.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details about time representation,
+coordinate systems, and packet-loss handling.
