@@ -53,6 +53,29 @@ compares velocity with vehicle orientation.
 `time_s` is time since the first captured game frame. `stage_time_s` preserves EA's stage clock
 including countdown and result-screen behaviour.
 
+## WRC route and co-driver layer
+
+The WRC instructor layer remains downstream from normalized telemetry:
+
+```text
+WRC capture --> track profile --> draft/imported pace notes --> local scheduler --> cached WAV
+```
+
+`track.py` filters the finish tail, makes stage distance monotonic, resamples the driven trace,
+and derives heading, curvature, and grade. A single vehicle trajectory is not a road-boundary
+measurement, so width is stored as `unknown` with no invented lane edges.
+
+`pacenotes.py` either creates conservative curvature-based draft calls or converts a
+user-supplied Zendrive-compatible file into the native schema. The native schema stores stable
+note IDs, stage distances, structured corner fields, English and Russian text, confidence, and
+provenance. Imported third-party data retains a mandatory license-review marker.
+
+`scheduler.py` owns safety-critical timing. It uses current stage distance, speed, and a bounded
+lead time; it resets after a detected stage restart. Neither an LLM nor a network round trip is
+in the live timing path. `tts.py` pre-generates content-addressed WAV files through either the
+OpenAI Python SDK or a configurable local command such as Piper. The live player reads only the
+cache manifest.
+
 ## Common events
 
 Initial defaults:
@@ -70,6 +93,7 @@ must later be calibrated separately by source, vehicle/class, controller, and ro
 
 ## Common outputs
 
-Every compilation creates `telemetry.csv`, `events.json`, `summary.json`, and `report.html` in
-a new output directory. Refusing to overwrite an existing directory prevents accidental loss
-of an earlier analysis.
+Every compilation creates `telemetry.csv`, `events.json`, `summary.json`, `report.html`,
+`script_ai.json`, and `road_centerline.json` in a new output directory. A WRC compilation with a
+usable moving trace also creates `track_profile.json` and `pace_notes.draft.json`. Refusing to
+overwrite an existing directory prevents accidental loss of an earlier analysis.

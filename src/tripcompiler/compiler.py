@@ -16,6 +16,9 @@ from typing import Any, Literal
 from tripcompiler.analysis import detect_events, normalize_packets
 from tripcompiler.models import AnalysisConfig, NormalizedSample, Scalar
 from tripcompiler.obd import ObdImportResult, canonical_pid, import_obd_trip
+from tripcompiler.pacenotes import generate_pace_notes, write_pace_notes
+from tripcompiler.track import TrackProfileError, build_track_profile, write_track_profile
+from tripcompiler.wrc_catalog import enrich_wrc_metadata, load_wrc_catalog
 
 SourceKind = Literal["obd", "wrc"]
 
@@ -57,6 +60,7 @@ def compile_trip(
     input_path: Path,
     output_dir: Path,
     config: AnalysisConfig | None = None,
+    wrc_ids_path: Path | None = None,
 ) -> dict[str, Any]:
     """Compile one OBD or WRC input into the same normalized artifact contract."""
 
@@ -68,7 +72,12 @@ def compile_trip(
         packets = load_capture(input_path)
         samples = normalize_packets(packets)
         source_name = "ea_sports_wrc_udp"
-        source_metadata = _wrc_metadata(packets[-1])
+        source_metadata = wrc_metadata(packets[-1])
+        if wrc_ids_path is not None:
+            source_metadata = enrich_wrc_metadata(
+                source_metadata,
+                load_wrc_catalog(wrc_ids_path),
+            )
     elif source == "obd":
         obd_result = import_obd_trip(input_path)
         samples = obd_result.samples
@@ -81,6 +90,18 @@ def compile_trip(
     output_dir.mkdir(parents=True)
     rows = _write_telemetry(output_dir, samples)
     _write_replay_outputs(output_dir, samples)
+    track_profile_status = "not_applicable"
+    if source == "wrc":
+        try:
+            profile = build_track_profile(samples, source_metadata)
+            write_track_profile(output_dir / "track_profile.json", profile)
+            write_pace_notes(
+                output_dir / "pace_notes.draft.json",
+                generate_pace_notes(profile),
+            )
+            track_profile_status = "generated"
+        except TrackProfileError:
+            track_profile_status = "insufficient_trace"
     event_payload = [event.to_dict() for event in events]
     (output_dir / "events.json").write_text(
         json.dumps(event_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -106,6 +127,7 @@ def compile_trip(
         "mean_speed_kph": fmean(speeds) * 3.6,
         "max_engine_rpm": max(sample.engine_rpm for sample in samples),
         "source_metadata": source_metadata,
+        "track_profile": track_profile_status,
         "events": len(events),
         "event_counts": event_counts,
         "data_quality": {
@@ -216,7 +238,7 @@ def _estimated_packet_loss(samples: list[NormalizedSample]) -> int:
     return sum(max(0, current - previous - 1) for previous, current in pairwise(packet_uids))
 
 
-def _wrc_metadata(final_channels: dict[str, Scalar]) -> dict[str, Scalar | None]:
+def wrc_metadata(final_channels: dict[str, Scalar]) -> dict[str, Any]:
     return {
         "game_mode": final_channels.get("game_mode"),
         "vehicle_id": final_channels.get("vehicle_id"),

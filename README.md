@@ -18,6 +18,10 @@ src/tripcompiler/
   capture.py      WRC UDP capture
   schema.py       configurable WRC packet decoder
   analysis.py     common WRC normalization and event detectors
+  track.py        distance-indexed WRC route profile
+  pacenotes.py    draft generation and user-supplied note import
+  scheduler.py    deterministic real-time call scheduler
+  tts.py          cached OpenAI or Piper speech generation
 tests/
 docs/
 drive_logs/       immutable source captures, excluded from Git
@@ -93,6 +97,10 @@ tripcompiler compile wrc "drive_logs\wrc\20260816_120000\telemetry.jsonl" `
   --output "compiled_trips\wrc_20260816_120000"
 ```
 
+When EA's generated `readme\ids.json` is available, TripCompiler resolves numeric vehicle,
+class, manufacturer, location, route, game-mode, and result-status identifiers into names. Use
+`--wrc-ids PATH` to select a catalog explicitly.
+
 ## Common output format
 
 Both sources produce:
@@ -104,6 +112,16 @@ Both sources produce:
 - `script_ai.json` — common trajectory for subsequent BeamNG ScriptAI adaptation;
 - `road_centerline.json` — local route centerline in metres.
 
+A WRC capture with a usable moving position trace additionally produces:
+
+- `track_profile.json` — a smoothed, distance-indexed route profile with heading, curvature,
+  grade, provenance, and an explicit unknown-width model;
+- `pace_notes.draft.json` — conservative English and Russian draft calls derived from curvature.
+
+The draft calls require a human recce before competitive use. Road width and cut safety cannot
+be inferred from a single driven center trace, so TripCompiler does not generate `cut` or
+`don't cut` instructions automatically.
+
 OBD compilation additionally produces:
 
 - `pid_catalog.csv` — complete PID inventory, frequency, and common-schema mapping;
@@ -113,6 +131,48 @@ Common detectors identify harsh braking and acceleration, high lateral accelerat
 handbrake use at speed, large slip angles, wheelspin, and simultaneous brake and throttle.
 The default thresholds are initial engineering values and require separate calibration for
 real-road driving and the rally simulator.
+
+## WRC co-driver prototype
+
+The first instructor increment keeps note timing local and deterministic. It can import a
+user-supplied Zendrive-compatible distance-indexed JSON file, preview calls against a recording,
+pre-generate speech, and play cached calls from live UDP telemetry.
+
+```powershell
+# Optional: import a legally obtained, user-supplied location-route note file.
+tripcompiler import-wrc-notes "C:\data\27-360.json" `
+  --output "compiled_trips\taipuha\pace_notes.json"
+
+# Verify timing without audio.
+tripcompiler preview-wrc-codriver `
+  "drive_logs\wrc\20260830_124128\telemetry.jsonl" `
+  "compiled_trips\taipuha\pace_notes.json" --language en
+
+# Cloud speech. Install the optional Python dependency first.
+python -m pip install -e ".[tts]"
+tripcompiler prepare-wrc-voice "compiled_trips\taipuha\pace_notes.json" `
+  --output "compiled_trips\taipuha\audio-en" --provider openai --language en
+
+# Local speech through a separately installed Piper executable and voice model.
+tripcompiler prepare-wrc-voice "compiled_trips\taipuha\pace_notes.json" `
+  --output "compiled_trips\taipuha\audio-ru" --provider piper --language ru `
+  --piper-model "C:\voices\ru_RU-voice.onnx"
+```
+
+For live use, add a second EA UDP packet entry using the same structure and port `20780`, then
+run:
+
+```powershell
+tripcompiler run-wrc-codriver "compiled_trips\taipuha\pace_notes.json" `
+  --language en --audio-dir "compiled_trips\taipuha\audio-en"
+```
+
+OpenAI and Piper generate WAV files before the stage; the live loop only schedules and plays
+cached audio. English (`en`) and Russian (`ru`) are the supported MVP languages. Piper and its
+voice models are external components with their own licenses and are not bundled. Zendrive data
+is also not bundled because its repository does not state redistribution terms; importing a file
+does not grant rights to use or redistribute it. See
+[docs/WRC_INSTRUCTOR.md](docs/WRC_INSTRUCTOR.md) for design and safety details.
 
 ## Quality checks
 
