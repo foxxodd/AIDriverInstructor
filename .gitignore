@@ -17,3 +17,4 @@ build/
 # Source captures and generated reports are local artifacts.
 drive_logs/
 compiled_trips/
+pacenotes/
