@@ -168,10 +168,10 @@ tripcompiler run-wrc-codriver "compiled_trips\taipuha\pace_notes.json" `
 ```
 
 OpenAI and Piper generate WAV files before the stage; the live loop only schedules and plays
-cached audio. English (`en`) and Russian (`ru`) are the supported MVP languages. Piper and its
-voice models are external components with their own licenses and are not bundled. Zendrive data
-is also not bundled because its repository does not state redistribution terms; importing a file
-does not grant rights to use or redistribute it. See
+cached audio. English (`en`) and Russian (`ru`) are supported. The optional Zendrive-compatible
+importer accepts user-supplied files from [zendulu/zendrive](https://github.com/zendulu/zendrive).
+Keep these files under the ignored `pacenotes/` directory; they are not redistributed until the
+upstream repository publishes an explicit license. See
 [docs/WRC_INSTRUCTOR.md](docs/WRC_INSTRUCTOR.md) for design and safety details.
 
 ## Quality checks

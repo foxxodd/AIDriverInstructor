@@ -19,8 +19,9 @@ The current increment provides a useful first co-driver without depending on Bea
 
 ## Existing pace-note datasets
 
-Zendrive contains distance-indexed pace-note files for EA Sports WRC routes and is technically
-compatible with this design. Its files contain a stage distance, one or more spoken phrases,
+The [Zendrive repository](https://github.com/zendulu/zendrive) contains distance-indexed pace-note
+files for EA Sports WRC routes and is technically compatible with this design. Its files contain
+a stage distance, one or more spoken phrases,
 and optional conditions. The repository currently has no declared software or dataset license.
 TripCompiler consequently does not download, copy, package, or redistribute Zendrive content.
 The importer accepts only a file supplied by the user and records provenance plus
