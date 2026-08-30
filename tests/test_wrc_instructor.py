@@ -178,7 +178,7 @@ def test_track_profile_and_draft_notes_round_trip(tmp_path: Path) -> None:
     assert note_set.languages == ("en", "ru")
     assert note_set.notes
     assert note_set.notes[0].direction == "left"
-    assert "\u043b\u0435\u0432\u044b\u0439" in note_set.notes[0].texts["ru"]
+    assert note_set.notes[0].texts["ru"].startswith("\u043b\u0435\u0432\u043e 3")
 
     notes_path = tmp_path / "pace_notes.json"
     write_pace_notes(notes_path, note_set)

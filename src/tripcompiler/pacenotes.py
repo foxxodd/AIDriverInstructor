@@ -319,8 +319,8 @@ def _english_corner(direction: str, severity: int, modifiers: tuple[str, ...]) -
 
 def _russian_corner(direction: str, severity: int, modifiers: tuple[str, ...]) -> str:
     translations = {
-        "left": "\u043b\u0435\u0432\u044b\u0439",
-        "right": "\u043f\u0440\u0430\u0432\u044b\u0439",
+        "left": "\u043b\u0435\u0432\u043e",
+        "right": "\u043f\u0440\u0430\u0432\u043e",
         "long": "\u0434\u043b\u0438\u043d\u043d\u044b\u0439",
         "tightens": "\u0441\u0443\u0436\u0430\u0435\u0442\u0441\u044f",
         "opens": "\u0440\u0430\u0441\u043a\u0440\u044b\u0432\u0430\u0435\u0442\u0441\u044f",
