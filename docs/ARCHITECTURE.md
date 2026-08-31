@@ -66,9 +66,17 @@ and derives heading, curvature, and grade. A single vehicle trajectory is not a 
 measurement, so width is stored as `unknown` with no invented lane edges.
 
 `pacenotes.py` either creates conservative curvature-based draft calls or converts a
-user-supplied Zendrive-compatible file into the native schema. The native schema stores stable
-note IDs, stage distances, structured corner fields, English and Russian text, confidence, and
-provenance. Imported third-party data retains a mandatory license-review marker.
+user-supplied Zendrive-compatible file into the native schema. During WRC compilation, the CLI
+looks for `<location_id>-<route_id>.json` in the ignored local Zendrive catalog and emits a primary
+`pace_notes.json` when it finds a match. The geometry draft remains available for comparison. The
+native schema stores stable note IDs, stage distances, structured corner fields, localized text,
+confidence, and provenance. Imported third-party data retains a mandatory license-review marker.
+
+`localization.py` discovers packaged exact-phrase dictionaries under
+`locales/pacenotes/<language>.json`. English and Russian currently cover the complete vocabulary
+of the audited Zendrive snapshot. Adding a language is a data-only change when its dictionary has
+the same phrase keys. An unknown upstream phrase remains available in English and does not produce
+a partial translation in another language.
 
 `scheduler.py` owns safety-critical timing. It uses current stage distance, speed, and a bounded
 lead time; it resets after a detected stage restart. Neither an LLM nor a network round trip is

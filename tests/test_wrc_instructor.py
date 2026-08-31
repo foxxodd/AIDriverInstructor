@@ -9,6 +9,11 @@ import pytest
 from tripcompiler.analysis import normalize_packets
 from tripcompiler.codriver import preview_codriver
 from tripcompiler.compiler import compile_trip
+from tripcompiler.localization import (
+    available_pace_note_languages,
+    load_pace_note_dictionary,
+    localize_pace_note_phrases,
+)
 from tripcompiler.pacenotes import (
     PaceNote,
     PaceNoteSet,
@@ -154,6 +159,20 @@ def test_catalog_supports_game_generated_utf16(tmp_path: Path) -> None:
     assert load_wrc_catalog(path).lookup("routes", 360) == {"id": 360, "name": "Taipuha"}
 
 
+def test_packaged_pace_note_locales_cover_zendrive_vocabulary() -> None:
+    english = load_pace_note_dictionary("en")
+    russian = load_pace_note_dictionary("ru")
+
+    assert available_pace_note_languages() == ("en", "ru")
+    assert len(english) == 216
+    assert english.keys() == russian.keys()
+    assert localize_pace_note_phrases(["four right", "tightens", "opens"], "ru") == (
+        "\u043f\u0440\u0430\u0432\u043e 4 "
+        "\u0441\u0443\u0436\u0435\u043d\u0438\u0435 "
+        "\u0440\u0430\u0441\u043a\u0440\u044b\u0442\u0438\u0435"
+    )
+
+
 def test_track_profile_and_draft_notes_round_trip(tmp_path: Path) -> None:
     profile = build_track_profile(
         normalize_packets(_curved_packets()),
@@ -211,7 +230,12 @@ def test_zendrive_import_is_user_supplied_and_distance_indexed(tmp_path: Path) -
 
     assert note_set.location_id == 27
     assert note_set.route_id == 360
+    assert note_set.languages == ("en", "ru")
     assert note_set.notes[0].texts["en"] == "slight right 40"
+    assert note_set.notes[0].texts["ru"] == (
+        "\u043b\u0451\u0433\u043a\u043e\u0435 \u043f\u0440\u0430\u0432\u043e 40"
+    )
+    assert note_set.notes[1].texts["ru"] == "\u043b\u0451\u0434"
     assert note_set.notes[1].modifiers == ("condition:winter=true",)
     assert note_set.provenance["requires_user_license_review"] is True
 
@@ -257,14 +281,30 @@ def test_wrc_compile_enriches_summary_and_creates_track_artifacts(tmp_path: Path
     )
     ids = tmp_path / "ids.json"
     _catalog(ids)
+    pacenotes_dir = tmp_path / "pacenotes"
+    pacenotes_dir.mkdir()
+    (pacenotes_dir / "27-360.json").write_text(
+        json.dumps([[1, ["120"]], [50, ["left four"]]]),
+        encoding="utf-8",
+    )
     output = tmp_path / "compiled"
 
-    summary = compile_trip("wrc", capture, output, wrc_ids_path=ids)
+    summary = compile_trip(
+        "wrc",
+        capture,
+        output,
+        wrc_ids_path=ids,
+        wrc_pacenotes_dir=pacenotes_dir,
+    )
 
     assert summary["source_metadata"]["route"] == "Taipuha"
     assert summary["track_profile"] == "generated"
+    assert summary["pace_notes"] == "zendrive_imported"
     assert (output / "track_profile.json").is_file()
     assert (output / "pace_notes.draft.json").is_file()
+    imported = load_pace_notes(output / "pace_notes.json")
+    assert imported.source == "user_supplied_zendrive_compatible"
+    assert len(imported.notes) == 2
 
 
 class _FakeTts:

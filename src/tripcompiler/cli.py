@@ -14,6 +14,7 @@ from tripcompiler.analysis import normalize_packets
 from tripcompiler.capture import capture_udp
 from tripcompiler.codriver import preview_codriver, run_live_codriver
 from tripcompiler.compiler import SourceKind, compile_trip, load_capture, wrc_metadata
+from tripcompiler.localization import available_pace_note_languages
 from tripcompiler.pacenotes import (
     import_zendrive_pace_notes,
     load_pace_notes,
@@ -43,6 +44,10 @@ def _default_ids() -> Path:
     return _default_telemetry_dir() / "readme" / "ids.json"
 
 
+def _default_pacenotes_dir() -> Path:
+    return Path("pacenotes") / "zendrive" / "pacenotes"
+
+
 def _decoder(args: argparse.Namespace) -> PacketDecoder:
     telemetry_dir = Path(args.telemetry_dir)
     return load_decoder(
@@ -56,6 +61,13 @@ def _catalog_path(value: str | None) -> Path | None:
         return Path(value)
     default = _default_ids()
     return default if default.is_file() else None
+
+
+def _pacenotes_dir_path(value: str | None) -> Path | None:
+    if value:
+        return Path(value)
+    default = _default_pacenotes_dir()
+    return default if default.is_dir() else None
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
@@ -97,7 +109,14 @@ def _cmd_compile(args: argparse.Namespace) -> int:
     input_path = Path(args.input)
     output = Path(args.output) if args.output else _default_compiled_dir(source, input_path)
     ids_path = _catalog_path(args.wrc_ids) if source == "wrc" else None
-    summary = compile_trip(source, input_path, output, wrc_ids_path=ids_path)
+    pacenotes_dir = _pacenotes_dir_path(args.wrc_pacenotes_dir) if source == "wrc" else None
+    summary = compile_trip(
+        source,
+        input_path,
+        output,
+        wrc_ids_path=ids_path,
+        wrc_pacenotes_dir=pacenotes_dir,
+    )
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
 
@@ -218,7 +237,7 @@ def _add_schema_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_language_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--language", choices=("en", "ru"), default="en")
+    parser.add_argument("--language", choices=available_pace_note_languages(), default="en")
     parser.add_argument("--lead-time", type=float, default=5.0, help="Target call lead time")
 
 
@@ -234,6 +253,10 @@ def build_parser() -> argparse.ArgumentParser:
     compile_command.add_argument("input", help="Car Scanner CSV or WRC telemetry.jsonl")
     compile_command.add_argument("--output", help="New output directory")
     compile_command.add_argument("--wrc-ids", help="EA WRC readme/ids.json")
+    compile_command.add_argument(
+        "--wrc-pacenotes-dir",
+        help="Directory containing location-route Zendrive-compatible JSON files",
+    )
     compile_command.set_defaults(func=_cmd_compile)
 
     validate = sub.add_parser("validate-wrc", help="Validate EA WRC channel and packet schemas")
@@ -269,7 +292,7 @@ def build_parser() -> argparse.ArgumentParser:
     voice = sub.add_parser("prepare-wrc-voice", help="Pre-generate cached WAV pace-note calls")
     voice.add_argument("notes", help="Native pace_notes.json")
     voice.add_argument("--output", required=True, help="Audio cache directory")
-    voice.add_argument("--language", choices=("en", "ru"), default="en")
+    voice.add_argument("--language", choices=available_pace_note_languages(), default="en")
     voice.add_argument("--provider", choices=("openai", "piper"), default="openai")
     voice.add_argument("--model", default="gpt-4o-mini-tts")
     voice.add_argument("--voice", default="coral")

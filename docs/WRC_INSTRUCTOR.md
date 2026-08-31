@@ -12,7 +12,7 @@ The current increment provides a useful first co-driver without depending on Bea
 
 1. resolve EA numeric IDs with the game's generated `ids.json`;
 2. build a distance-indexed track profile from a completed recording;
-3. generate conservative draft notes or import a user-supplied compatible note file;
+3. generate conservative draft notes and automatically import a matching local compatible file;
 4. verify call timing by replaying a recording;
 5. pre-generate English or Russian WAV files;
 6. schedule and play cached calls from live EA UDP packets.
@@ -24,8 +24,25 @@ files for EA Sports WRC routes and is technically compatible with this design. I
 a stage distance, one or more spoken phrases,
 and optional conditions. The repository currently has no declared software or dataset license.
 TripCompiler consequently does not download, copy, package, or redistribute Zendrive content.
-The importer accepts only a file supplied by the user and records provenance plus
-`requires_user_license_review: true` in the output.
+The user may place a local checkout under the ignored root `pacenotes/` directory. During WRC
+compilation, TripCompiler selects `<location_id>-<route_id>.json` from that checkout and records
+provenance plus `requires_user_license_review: true` in the output.
+
+The audited local Zendrive snapshot contains 264 JSON files, 39,162 note records, and 216 distinct
+spoken phrases. All files and records match the supported structure. One source record is stored
+out of distance order; the importer therefore sorts normalized notes by stage distance without
+changing the source file.
+
+## Pace-note localization
+
+Exact-phrase dictionaries are packaged under `src/tripcompiler/locales/pacenotes/`. English and
+Russian dictionaries cover all 216 phrases in the audited snapshot. The importer discovers these
+files automatically, so another language can be added as a separate JSON dictionary without
+changing the import algorithm. If an updated source introduces an unknown phrase, English falls
+back to the original text and incomplete translations are omitted.
+
+Russian terminology uses concise rally-style directions and noun-form modifiers. Maintained JSON
+stores non-English values as Unicode escapes to keep source and documentation technically English.
 
 Other open-source co-driver projects can inform algorithms but do not automatically grant rights
 to their route data. Code licenses and dataset licenses must be reviewed separately before any

@@ -31,7 +31,7 @@ tripcompiler = "tripcompiler.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-tripcompiler = ["config/*.json"]
+tripcompiler = ["config/*.json", "locales/pacenotes/*.json"]
 
 [tool.ruff]
 target-version = "py310"

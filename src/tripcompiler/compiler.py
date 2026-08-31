@@ -16,7 +16,12 @@ from typing import Any, Literal
 from tripcompiler.analysis import detect_events, normalize_packets
 from tripcompiler.models import AnalysisConfig, NormalizedSample, Scalar
 from tripcompiler.obd import ObdImportResult, canonical_pid, import_obd_trip
-from tripcompiler.pacenotes import generate_pace_notes, write_pace_notes
+from tripcompiler.pacenotes import (
+    PaceNoteSet,
+    generate_pace_notes,
+    import_zendrive_pace_notes,
+    write_pace_notes,
+)
 from tripcompiler.track import TrackProfileError, build_track_profile, write_track_profile
 from tripcompiler.wrc_catalog import enrich_wrc_metadata, load_wrc_catalog
 
@@ -61,6 +66,7 @@ def compile_trip(
     output_dir: Path,
     config: AnalysisConfig | None = None,
     wrc_ids_path: Path | None = None,
+    wrc_pacenotes_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Compile one OBD or WRC input into the same normalized artifact contract."""
 
@@ -68,6 +74,7 @@ def compile_trip(
         raise FileExistsError(f"Output directory already exists: {output_dir}")
 
     obd_result: ObdImportResult | None = None
+    imported_pace_notes: PaceNoteSet | None = None
     if source == "wrc":
         packets = load_capture(input_path)
         samples = normalize_packets(packets)
@@ -78,6 +85,18 @@ def compile_trip(
                 source_metadata,
                 load_wrc_catalog(wrc_ids_path),
             )
+        if wrc_pacenotes_dir is not None:
+            location_id = source_metadata.get("location_id")
+            route_id = source_metadata.get("route_id")
+            if (
+                isinstance(location_id, (int, float))
+                and not isinstance(location_id, bool)
+                and isinstance(route_id, (int, float))
+                and not isinstance(route_id, bool)
+            ):
+                candidate = wrc_pacenotes_dir / f"{int(location_id)}-{int(route_id)}.json"
+                if candidate.is_file():
+                    imported_pace_notes = import_zendrive_pace_notes(candidate)
     elif source == "obd":
         obd_result = import_obd_trip(input_path)
         samples = obd_result.samples
@@ -91,7 +110,9 @@ def compile_trip(
     rows = _write_telemetry(output_dir, samples)
     _write_replay_outputs(output_dir, samples)
     track_profile_status = "not_applicable"
+    pace_notes_status = "not_applicable"
     if source == "wrc":
+        pace_notes_status = "none"
         try:
             profile = build_track_profile(samples, source_metadata)
             write_track_profile(output_dir / "track_profile.json", profile)
@@ -100,8 +121,12 @@ def compile_trip(
                 generate_pace_notes(profile),
             )
             track_profile_status = "generated"
+            pace_notes_status = "geometry_draft_only"
         except TrackProfileError:
             track_profile_status = "insufficient_trace"
+        if imported_pace_notes is not None:
+            write_pace_notes(output_dir / "pace_notes.json", imported_pace_notes)
+            pace_notes_status = "zendrive_imported"
     event_payload = [event.to_dict() for event in events]
     (output_dir / "events.json").write_text(
         json.dumps(event_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -128,6 +153,7 @@ def compile_trip(
         "max_engine_rpm": max(sample.engine_rpm for sample in samples),
         "source_metadata": source_metadata,
         "track_profile": track_profile_status,
+        "pace_notes": pace_notes_status,
         "events": len(events),
         "event_counts": event_counts,
         "data_quality": {

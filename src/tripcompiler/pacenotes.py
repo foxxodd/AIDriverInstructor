@@ -8,6 +8,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from tripcompiler.localization import (
+    available_pace_note_languages,
+    localize_pace_note_phrases,
+)
 from tripcompiler.track import TrackPoint, TrackProfile
 
 
@@ -133,6 +137,8 @@ def import_zendrive_pace_notes(
         raise PaceNoteError("Zendrive-compatible pace notes must be a list")
 
     notes: list[PaceNote] = []
+    available_languages = available_pace_note_languages()
+    used_languages = {"en"}
     for index, raw in enumerate(document, start=1):
         if not isinstance(raw, list) or len(raw) < 2:
             raise PaceNoteError(f"Invalid pace note at index {index - 1}")
@@ -146,6 +152,13 @@ def import_zendrive_pace_notes(
         modifiers = tuple(
             f"condition:{key}={str(value).lower()}" for key, value in sorted(conditions.items())
         )
+        texts: dict[str, str] = {}
+        for language in available_languages:
+            localized = localize_pace_note_phrases(phrases, language)
+            if localized is not None:
+                texts[language] = localized
+                used_languages.add(language)
+        texts.setdefault("en", " ".join(phrases))
         notes.append(
             PaceNote(
                 note_id=f"imported-{index:03d}",
@@ -154,7 +167,7 @@ def import_zendrive_pace_notes(
                 direction=None,
                 severity=None,
                 modifiers=modifiers,
-                texts={"en": " ".join(phrases)},
+                texts=texts,
                 confidence=0.8,
             )
         )
@@ -164,8 +177,8 @@ def import_zendrive_pace_notes(
         source="user_supplied_zendrive_compatible",
         location_id=location_id,
         route_id=route_id,
-        languages=("en",),
-        notes=tuple(notes),
+        languages=tuple(language for language in available_languages if language in used_languages),
+        notes=tuple(sorted(notes, key=lambda note: note.distance_m)),
         provenance={
             "input": str(path),
             "redistribution_rights": "not_asserted_by_tripcompiler",
@@ -322,8 +335,8 @@ def _russian_corner(direction: str, severity: int, modifiers: tuple[str, ...]) -
         "left": "\u043b\u0435\u0432\u043e",
         "right": "\u043f\u0440\u0430\u0432\u043e",
         "long": "\u0434\u043b\u0438\u043d\u043d\u044b\u0439",
-        "tightens": "\u0441\u0443\u0436\u0430\u0435\u0442\u0441\u044f",
-        "opens": "\u0440\u0430\u0441\u043a\u0440\u044b\u0432\u0430\u0435\u0442\u0441\u044f",
+        "tightens": "\u0441\u0443\u0436\u0435\u043d\u0438\u0435",
+        "opens": "\u0440\u0430\u0441\u043a\u0440\u044b\u0442\u0438\u0435",
     }
     parts = [translations[direction], str(severity)]
     parts.extend(translations[modifier] for modifier in modifiers)

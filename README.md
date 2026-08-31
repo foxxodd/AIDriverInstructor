@@ -1,34 +1,41 @@
 # TripCompiler
 
-A unified Python 3.10 project for post-trip analysis of two input formats:
+TripCompiler is one Python 3.10-3.13 application for processing two driving-data sources:
 
 - `obd` — long-form CSV exported by Car Scanner (`OBD-II + GPS`);
-- `wrc` — JSONL captured from the official EA Sports WRC UDP telemetry interface on PC.
+- `wrc` — JSONL recorded from the official EA Sports WRC UDP telemetry interface on PC.
 
-The entire project resides at the repository root. There are no separate WRC and OBD compilers:
-the source is a required argument of the single `tripcompiler compile` command.
+Both sources use the same `tripcompiler compile <source>` command and produce a common trip model.
+The current WRC increment also builds a route profile, imports local Zendrive pace notes, provides
+English and Russian calls, pre-generates speech, and runs an external real-time co-driver.
 
-## Structure
+## Repository layout
 
 ```text
 src/tripcompiler/
-  cli.py          unified CLI
-  compiler.py     source dispatcher and common result format
-  obd.py          Car Scanner CSV adapter
-  capture.py      WRC UDP capture
-  schema.py       configurable WRC packet decoder
-  analysis.py     common WRC normalization and event detectors
-  track.py        distance-indexed WRC route profile
-  pacenotes.py    draft generation and user-supplied note import
-  scheduler.py    deterministic real-time call scheduler
-  tts.py          cached OpenAI or Piper speech generation
+  cli.py                       unified command-line interface
+  compiler.py                  OBD/WRC dispatcher and common output contract
+  obd.py                       Car Scanner adapter
+  capture.py                   WRC UDP recorder
+  schema.py                    configurable WRC packet decoder
+  analysis.py                  normalization and event detection
+  track.py                     distance-indexed WRC route profile
+  pacenotes.py                 draft generation and external note import
+  localization.py              packaged pace-note dictionary loader
+  locales/pacenotes/en.json    English Zendrive phrase dictionary
+  locales/pacenotes/ru.json    Russian Zendrive phrase dictionary
+  scheduler.py                 deterministic real-time call scheduler
+  tts.py                       cached OpenAI or Piper speech generation
 tests/
 docs/
-drive_logs/       immutable source captures, excluded from Git
-compiled_trips/   generated results, excluded from Git
+drive_logs/                    immutable source captures, ignored by Git
+compiled_trips/                generated artifacts, ignored by Git
+pacenotes/                     local third-party pace-note data, ignored by Git
 ```
 
 ## Installation
+
+Run these commands from PowerShell:
 
 ```powershell
 cd C:\projects\AIDriverInstructor
@@ -38,32 +45,32 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-## Compiling OBD data
+All command examples below are intentionally shown on one line. A PowerShell backtick is therefore
+not required.
 
-```powershell
-tripcompiler compile obd "drive_logs\2026-07-29 16-27-48.csv" `
-  --output "compiled_trips\obd_2026-07-29"
+## EA Sports WRC workflow
+
+### 1. Configure WRC telemetry
+
+After the first game launch, EA Sports WRC creates:
+
+```text
+%USERPROFILE%\Documents\My Games\WRC\telemetry
 ```
 
-The OBD adapter:
+Copy the TripCompiler packet structure:
 
-- reads semicolon-delimited CSV with `SECONDS`, `PID`, `VALUE`, `UNITS`,
-  `LATITUDE`, and `LONGTITUDE` columns;
-- supports UTF-8, UTF-8 with BOM, and CP1251;
-- converts GPS coordinates to local metres;
-- normalizes speed, RPM, accelerator, brake, acceleration, and wheel-speed signals;
-- preserves a PID catalog and recognized raw dynamic signals;
-- never modifies the source CSV.
+```text
+src\tripcompiler\config\wrc_ai_instructor.json
+```
 
-## Configuring and recording WRC
+to:
 
-After the first game launch, EA Sports WRC creates
-`%USERPROFILE%\Documents\My Games\WRC\telemetry`.
+```text
+%USERPROFILE%\Documents\My Games\WRC\telemetry\udp\wrc_ai_instructor.json
+```
 
-1. Copy
-   `src\tripcompiler\config\wrc_ai_instructor.json` to
-   `%USERPROFILE%\Documents\My Games\WRC\telemetry\udp\wrc_ai_instructor.json`.
-2. Add the following entry to the `udp.packets` array in the game's `config.json`:
+Add this entry to the `udp.packets` array in the game's `config.json`:
 
 ```json
 {
@@ -76,103 +83,198 @@ After the first game launch, EA Sports WRC creates
 }
 ```
 
-3. Validate the schema against the installed game version:
+Validate the installed EA channel registry and packet structure:
 
 ```powershell
 tripcompiler validate-wrc
 ```
 
-4. Start recording before entering the stage and stop with Ctrl+C after the finish:
+### 2. Install Zendrive pace notes locally
+
+Clone Zendrive into the ignored root `pacenotes/` directory:
+
+```powershell
+git clone --depth 1 https://github.com/zendulu/zendrive.git pacenotes\zendrive
+```
+
+The expected Taipuha source file is then:
+
+```text
+pacenotes\zendrive\pacenotes\27-360.json
+```
+
+Here `27` is the EA location ID and `360` is the EA route ID. TripCompiler uses this naming scheme
+to select the correct file automatically. The upstream checkout remains local and is not committed.
+Until Zendrive publishes an explicit license, its data must not be redistributed with this project.
+
+To update an existing local checkout:
+
+```powershell
+git -C pacenotes\zendrive pull --ff-only
+```
+
+### 3. Record a stage
+
+Start the recorder before entering the stage and stop it with Ctrl+C after the finish:
 
 ```powershell
 tripcompiler record-wrc
 ```
 
-By default, captures are stored in `drive_logs/wrc/<timestamp>/`.
+The default recording directory is:
 
-5. Compile the capture with the same TripCompiler:
-
-```powershell
-tripcompiler compile wrc "drive_logs\wrc\20260816_120000\telemetry.jsonl" `
-  --output "compiled_trips\wrc_20260816_120000"
+```text
+drive_logs\wrc\<timestamp>\
 ```
 
-When EA's generated `readme\ids.json` is available, TripCompiler resolves numeric vehicle,
-class, manufacturer, location, route, game-mode, and result-status identifiers into names. Use
-`--wrc-ids PATH` to select a catalog explicitly.
+For the current Taipuha example, the source recording is:
 
-## Common output format
+```text
+drive_logs\wrc\20260830_124128\telemetry.jsonl
+```
 
-Both sources produce:
+Source files under `drive_logs/` are immutable. Do not edit, rename, or replace them.
 
-- `telemetry.csv` — unified normalized telemetry schema;
-- `events.json` — detected event intervals;
-- `summary.json` — trip metrics and data-quality information;
-- `report.html` — standalone report;
-- `script_ai.json` — common trajectory for subsequent BeamNG ScriptAI adaptation;
-- `road_centerline.json` — local route centerline in metres.
+### 4. Compile the recording
 
-A WRC capture with a usable moving position trace additionally produces:
-
-- `track_profile.json` — a smoothed, distance-indexed route profile with heading, curvature,
-  grade, provenance, and an explicit unknown-width model;
-- `pace_notes.draft.json` — conservative English and Russian draft calls derived from curvature.
-
-The draft calls require a human recce before competitive use. Road width and cut safety cannot
-be inferred from a single driven center trace, so TripCompiler does not generate `cut` or
-`don't cut` instructions automatically.
-
-OBD compilation additionally produces:
-
-- `pid_catalog.csv` — complete PID inventory, frequency, and common-schema mapping;
-- `vehicle_dynamics_raw.csv` — recognized source measurements without rewriting the CSV.
-
-Common detectors identify harsh braking and acceleration, high lateral acceleration,
-handbrake use at speed, large slip angles, wheelspin, and simultaneous brake and throttle.
-The default thresholds are initial engineering values and require separate calibration for
-real-road driving and the rally simulator.
-
-## WRC co-driver prototype
-
-The first instructor increment keeps note timing local and deterministic. It can import a
-user-supplied Zendrive-compatible distance-indexed JSON file, preview calls against a recording,
-pre-generate speech, and play cached calls from live UDP telemetry.
+Compile the Taipuha recording:
 
 ```powershell
-# Optional: import a legally obtained, user-supplied location-route note file.
-tripcompiler import-wrc-notes "C:\data\27-360.json" `
-  --output "compiled_trips\taipuha\pace_notes.json"
+tripcompiler compile wrc "drive_logs\wrc\20260830_124128\telemetry.jsonl" --output "compiled_trips\wrc_20260830_124128"
+```
 
-# Verify timing without audio.
-tripcompiler preview-wrc-codriver `
-  "drive_logs\wrc\20260830_124128\telemetry.jsonl" `
-  "compiled_trips\taipuha\pace_notes.json" --language en
+The output directory must not already exist. TripCompiler refuses to overwrite a previous analysis.
+Use a new name such as `wrc_20260830_124128_v2` when recompiling the same source.
 
-# Cloud speech. Install the optional Python dependency first.
+During WRC compilation TripCompiler:
+
+1. reads EA's generated `readme\ids.json` when available;
+2. resolves vehicle, class, manufacturer, location, and route names;
+3. builds `track_profile.json` and `pace_notes.draft.json` from geometry;
+4. looks for `pacenotes\zendrive\pacenotes\<location_id>-<route_id>.json`;
+5. writes the matching Zendrive data as the primary `pace_notes.json`.
+
+Use another local catalog explicitly when necessary:
+
+```powershell
+tripcompiler compile wrc "drive_logs\wrc\20260830_124128\telemetry.jsonl" --output "compiled_trips\wrc_20260830_124128_v2" --wrc-pacenotes-dir "D:\wrc-data\pacenotes"
+```
+
+### 5. Preview co-driver timing
+
+Preview uses the original recording for speed and stage-distance timing, and the compiled primary
+pace-note file for calls:
+
+```powershell
+tripcompiler preview-wrc-codriver "drive_logs\wrc\20260830_124128\telemetry.jsonl" "compiled_trips\wrc_20260830_124128\pace_notes.json" --language ru
+```
+
+Use `--language en` for English. Preview does not synthesize or play audio; it prints every scheduled
+call so its note distance and trigger distance can be reviewed first.
+
+### 6. Generate speech before the stage
+
+Speech is generated once and cached as WAV files. No TTS request runs in the live scheduling loop.
+
+For OpenAI speech, install the optional SDK and configure `OPENAI_API_KEY` in the environment:
+
+```powershell
 python -m pip install -e ".[tts]"
-tripcompiler prepare-wrc-voice "compiled_trips\taipuha\pace_notes.json" `
-  --output "compiled_trips\taipuha\audio-en" --provider openai --language en
-
-# Local speech through a separately installed Piper executable and voice model.
-tripcompiler prepare-wrc-voice "compiled_trips\taipuha\pace_notes.json" `
-  --output "compiled_trips\taipuha\audio-ru" --provider piper --language ru `
-  --piper-model "C:\voices\ru_RU-voice.onnx"
+tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-ru" --provider openai --language ru
 ```
 
-For live use, add a second EA UDP packet entry using the same structure and port `20780`, then
-run:
+For local Piper speech, install Piper separately and select an ONNX voice model:
 
 ```powershell
-tripcompiler run-wrc-codriver "compiled_trips\taipuha\pace_notes.json" `
-  --language en --audio-dir "compiled_trips\taipuha\audio-en"
+tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-ru" --provider piper --language ru --piper-model "C:\voices\ru_RU-voice.onnx"
 ```
 
-OpenAI and Piper generate WAV files before the stage; the live loop only schedules and plays
-cached audio. English (`en`) and Russian (`ru`) are supported. The optional Zendrive-compatible
-importer accepts user-supplied files from [zendulu/zendrive](https://github.com/zendulu/zendrive).
-Keep these files under the ignored `pacenotes/` directory; they are not redistributed until the
-upstream repository publishes an explicit license. See
-[docs/WRC_INSTRUCTOR.md](docs/WRC_INSTRUCTOR.md) for design and safety details.
+Piper binaries and voice models are not bundled. Review each external component's license before
+redistribution.
+
+### 7. Run the external live co-driver
+
+Add a second WRC UDP `session_update` entry with the same `wrc_ai_instructor` structure and port
+`20780`. Keep port `20779` for recording and port `20780` for the live co-driver.
+
+Run the co-driver with the prepared cache:
+
+```powershell
+tripcompiler run-wrc-codriver "compiled_trips\wrc_20260830_124128\pace_notes.json" --language ru --audio-dir "compiled_trips\wrc_20260830_124128\audio-ru"
+```
+
+Mute the built-in WRC co-driver when testing the external one. The live process only decodes UDP,
+schedules calls by stage distance and speed, and plays cached WAV files.
+
+## When manual pace-note import is needed
+
+Manual import is not required when `tripcompiler compile wrc` finds the local Zendrive catalog.
+Use it only for a standalone compatible JSON file or when adding notes to an existing compiled
+trip without recompiling it.
+
+For example, this one-line command imports Taipuha under a new filename:
+
+```powershell
+tripcompiler import-wrc-notes "pacenotes\zendrive\pacenotes\27-360.json" --output "compiled_trips\wrc_20260830_124128\pace_notes.manual.json"
+```
+
+The destination file must not already exist. The command converts the upstream list format into
+the native multilingual TripCompiler schema; it does not modify the source file.
+
+## Pace-note languages
+
+Packaged exact-phrase dictionaries live in:
+
+```text
+src\tripcompiler\locales\pacenotes\
+```
+
+The current `en.json` and `ru.json` dictionaries cover all 216 phrases found across the current
+264-file Zendrive catalog. Russian calls use concise rally-style directions and noun-form
+modifiers instead of inflected direction adjectives or verb phrases.
+
+A future language is added as another `<language>.json` file with the same schema and phrase keys.
+The importer discovers packaged language files automatically. If an updated upstream file contains
+an unknown phrase, English remains available while that phrase is added to other dictionaries.
+
+## Generated artifacts
+
+Every OBD or WRC compilation produces:
+
+- `telemetry.csv` — normalized telemetry used for detailed analysis;
+- `events.json` — detected event intervals;
+- `summary.json` — trip metrics, source metadata, and data-quality information;
+- `report.html` — standalone human-readable report;
+- `script_ai.json` — trajectory reserved for later BeamNG ScriptAI work;
+- `road_centerline.json` — local route centerline.
+
+A usable WRC recording additionally produces:
+
+- `track_profile.json` — distance-indexed position, heading, curvature, and grade;
+- `pace_notes.draft.json` — conservative geometry-only English/Russian draft;
+- `pace_notes.json` — primary imported Zendrive notes when a matching local file exists.
+
+The geometry draft cannot infer crests, jumps, hazards, road edges, or safe cuts from a single
+vehicle trace. Zendrive data is therefore preferred when present, while the draft remains useful
+for comparison and diagnostics.
+
+## Compiling Car Scanner OBD data
+
+```powershell
+tripcompiler compile obd "drive_logs\2026-07-29 16-27-48.csv" --output "compiled_trips\obd_2026-07-29"
+```
+
+The OBD adapter:
+
+- reads semicolon-delimited CSV with `SECONDS`, `PID`, `VALUE`, `UNITS`, `LATITUDE`, and
+  `LONGTITUDE` columns;
+- supports UTF-8, UTF-8 with BOM, and CP1251;
+- converts GPS coordinates to local metres;
+- normalizes speed, RPM, accelerator, brake, acceleration, and wheel-speed signals;
+- preserves a PID catalog and recognized raw dynamic signals;
+- never modifies the source CSV.
+
+OBD compilation additionally creates `pid_catalog.csv` and `vehicle_dynamics_raw.csv`.
 
 ## Quality checks
 
@@ -183,6 +285,6 @@ python -m mypy src
 python -m pytest
 ```
 
-Minimum test coverage is 75%. GitHub Actions runs the same checks on Python 3.10.
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details about time representation,
-coordinate systems, and packet-loss handling.
+Test coverage must remain at or above 75 percent. GitHub Actions runs the checks on Python 3.10.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
+[docs/WRC_INSTRUCTOR.md](docs/WRC_INSTRUCTOR.md) for design details and safety constraints.
