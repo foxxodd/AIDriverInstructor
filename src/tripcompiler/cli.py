@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from dataclasses import asdict
 from datetime import datetime
 from importlib.resources import files
@@ -25,6 +26,7 @@ from tripcompiler.track import build_track_profile, write_track_profile
 from tripcompiler.tts import (
     CommandTtsProvider,
     OpenAITtsProvider,
+    TtsError,
     TtsProvider,
     prepare_audio_cache,
 )
@@ -163,7 +165,20 @@ def _cmd_prepare_voice(args: argparse.Namespace) -> int:
         )
     else:
         if not args.piper_model:
-            raise ValueError("--piper-model is required for the piper provider")
+            raise TtsError("--piper-model is required for the piper provider")
+        executable = Path(args.piper_executable)
+        if shutil.which(args.piper_executable) is None and not executable.is_file():
+            raise TtsError(
+                f"Piper executable not found: {args.piper_executable!r}. "
+                "Install it with 'python -m pip install piper-tts' or pass "
+                "--piper-executable."
+            )
+        model = Path(args.piper_model)
+        if not model.is_file():
+            raise TtsError(f"Piper voice model not found: {model}")
+        model_config = Path(f"{model}.json")
+        if not model_config.is_file():
+            raise TtsError(f"Piper voice model configuration not found: {model_config}")
         provider = CommandTtsProvider(
             (
                 args.piper_executable,
@@ -327,8 +342,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    args = build_parser().parse_args()
-    return int(args.func(args))
+    parser = build_parser()
+    args = parser.parse_args()
+    try:
+        return int(args.func(args))
+    except (FileExistsError, TtsError) as exc:
+        parser.exit(2, f"error: {exc}\n")
 
 
 if __name__ == "__main__":

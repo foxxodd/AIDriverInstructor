@@ -183,14 +183,30 @@ python -m pip install -e ".[tts]"
 tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-ru" --provider openai --language ru
 ```
 
-For local Piper speech, install Piper separately and select an ONNX voice model:
+For local Piper speech, install the official Python package into the active virtual environment:
 
 ```powershell
-tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-ru" --provider piper --language ru --piper-model "C:\voices\ru_RU-voice.onnx"
+python -m pip install piper-tts
+python -m piper.download_voices --data-dir "C:\voices" ru_RU-denis-medium
 ```
 
-Piper binaries and voice models are not bundled. Review each external component's license before
-redistribution.
+The download command creates both `ru_RU-denis-medium.onnx` and its required adjacent
+`ru_RU-denis-medium.onnx.json` configuration. Verify the installation:
+
+```powershell
+.\.venv\Scripts\piper.exe --help
+Test-Path "C:\voices\ru_RU-denis-medium.onnx"
+Test-Path "C:\voices\ru_RU-denis-medium.onnx.json"
+```
+
+Both `Test-Path` commands must print `True`. Then build the Russian audio cache:
+
+```powershell
+tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-ru" --provider piper --language ru --piper-executable ".\.venv\Scripts\piper.exe" --piper-model "C:\voices\ru_RU-denis-medium.onnx"
+```
+
+Piper and its voice models are not bundled. Piper is GPL-3.0; the Denis voice model card identifies
+its source dataset as CC0. Review the engine and selected voice licenses before redistribution.
 
 ### 7. Run the external live co-driver
 

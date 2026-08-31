@@ -65,3 +65,81 @@ def test_compile_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     )
     assert main() == 0
     assert (output / "summary.json").is_file()
+
+
+def test_prepare_voice_reports_missing_piper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: Any,
+) -> None:
+    notes = tmp_path / "pace_notes.json"
+    notes.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "source": "test",
+                "location_id": 27,
+                "route_id": 360,
+                "languages": ["en", "ru"],
+                "notes": [],
+                "provenance": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "audio"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tripcompiler",
+            "prepare-wrc-voice",
+            str(notes),
+            "--output",
+            str(output),
+            "--provider",
+            "piper",
+            "--piper-executable",
+            str(tmp_path / "missing-piper.exe"),
+            "--piper-model",
+            str(tmp_path / "missing-model.onnx"),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        main()
+
+    assert raised.value.code == 2
+    assert "Piper executable not found" in capsys.readouterr().err
+    assert not output.exists()
+
+
+def test_existing_output_reports_concise_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: Any,
+) -> None:
+    source = tmp_path / "27-360.json"
+    source.write_text("[]", encoding="utf-8")
+    output = tmp_path / "pace_notes.json"
+    output.write_text("existing user data", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tripcompiler",
+            "import-wrc-notes",
+            str(source),
+            "--output",
+            str(output),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        main()
+
+    assert raised.value.code == 2
+    error = capsys.readouterr().err
+    assert "File exists" in error
+    assert "Traceback" not in error
+    assert output.read_text(encoding="utf-8") == "existing user data"
