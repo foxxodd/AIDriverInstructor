@@ -88,8 +88,8 @@ in the live timing path. `tts.py` pre-generates content-addressed WAV files thro
 Python SDK. Because the complete Russian catalog contains 7,290 composed calls, the audio command
 requires one `<location_id>-<route_id>` selection. It deduplicates identical calls on that route and
 writes a shared WAV store plus its live-player manifest. The cache key includes model, voice,
-delivery instructions, language, and note text. The live player reads only its route manifest;
-speech synthesis and network access stay outside the live timing path.
+speech speed, delivery instructions, language, and note text. The live player reads only its route
+manifest; speech synthesis and network access stay outside the live timing path.
 
 ## Common events
 

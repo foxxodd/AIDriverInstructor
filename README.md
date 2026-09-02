@@ -244,14 +244,24 @@ tripcompiler prepare-wrc-audio --language ru --route 27-360
 The ignored output is `audio_ru\`. The selected route receives a live-player manifest under
 `audio_ru\routes\27-360\manifest.json`; identical calls within the route share one WAV.
 
-The defaults are `gpt-4o-mini-tts` and `cedar`. OpenAI also recommends `marin` for high quality:
+The defaults are `gpt-4o-mini-tts`, `cedar`, and rally speech speed `1.5`. A previous
+three-second call should be close to two seconds at this speed. Re-run the same route command to
+generate a new cache; the speed is part of its cache key. For an even faster comparison:
+
+```powershell
+tripcompiler prepare-wrc-audio --language ru --route 27-360 --speed 1.7 --output audio_fast_ru
+```
+
+The [OpenAI speech API reference](https://developers.openai.com/api/reference/resources/audio/subresources/speech/methods/create)
+accepts values from `0.25` to `4.0`. Values much above `2.0` are unlikely to remain clear for
+dense rally calls. OpenAI also recommends `marin` for high voice quality:
 
 ```powershell
 tripcompiler prepare-wrc-audio --language ru --route 27-360 --voice marin --output audio_marin_ru
 ```
 
-Model, voice, instructions, language, and note text contribute to the content-addressed cache key.
-Re-running a command synthesizes only missing unique WAV files. The older `prepare-wrc-voice` command
+Model, voice, speed, instructions, language, and note text contribute to the content-addressed
+cache key. Re-running a command synthesizes only missing unique WAV files. The older `prepare-wrc-voice` command
 remains available for one standalone compiled `pace_notes.json` file.
 
 Speech is synthesized before the stage; the live loop makes no network request. API synthesis may

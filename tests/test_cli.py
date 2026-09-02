@@ -80,6 +80,7 @@ def test_prepare_voice_uses_openai_quality_defaults() -> None:
     assert args.provider == "openai"
     assert args.model == "gpt-4o-mini-tts"
     assert args.voice == "cedar"
+    assert args.speed == 1.5
     assert "highly intelligible" in args.instructions
 
 
@@ -95,8 +96,21 @@ def test_batch_catalog_commands_use_language_defaults() -> None:
     assert audio_args.output is None
     assert audio_args.route == "27-360"
     assert audio_args.env_file == ".env.dev"
+    assert audio_args.speed == 1.5
     with pytest.raises(SystemExit):
         build_parser().parse_args(["prepare-wrc-audio", "--language", "ru"])
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(
+            [
+                "prepare-wrc-audio",
+                "--language",
+                "ru",
+                "--route",
+                "27-360",
+                "--speed",
+                "4.1",
+            ]
+        )
 
 
 def test_existing_output_reports_concise_error(

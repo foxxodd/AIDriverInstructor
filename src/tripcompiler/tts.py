@@ -16,10 +16,11 @@ from tripcompiler.pacenotes import PaceNoteSet
 
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini-tts"
 DEFAULT_OPENAI_VOICE = "cedar"
+DEFAULT_OPENAI_SPEED = 1.5
 DEFAULT_OPENAI_INSTRUCTIONS = (
     "Speak as a professional rally co-driver. Use a firm, energetic, highly intelligible "
-    "delivery. Keep every call short and urgent, with crisp consonants and no conversational "
-    "filler."
+    "delivery. Use a fast, clipped rally cadence with minimal pauses. Keep every call short "
+    "and urgent, with crisp consonants and no conversational filler."
 )
 
 _LANGUAGE_INSTRUCTIONS = {
@@ -47,17 +48,22 @@ class OpenAITtsProvider:
 
     model: str = DEFAULT_OPENAI_MODEL
     voice: str = DEFAULT_OPENAI_VOICE
+    speed: float = DEFAULT_OPENAI_SPEED
     instructions: str = DEFAULT_OPENAI_INSTRUCTIONS
     env_file: Path | None = Path(".env.dev")
 
     @property
     def provider_id(self) -> str:
         instruction_config = json.dumps(
-            {"base": self.instructions, "languages": _LANGUAGE_INSTRUCTIONS},
+            {
+                "base": self.instructions,
+                "languages": _LANGUAGE_INSTRUCTIONS,
+                "speed": self.speed,
+            },
             sort_keys=True,
         )
         instruction_digest = hashlib.sha256(instruction_config.encode()).hexdigest()[:12]
-        return f"openai:{self.model}:{self.voice}:{instruction_digest}"
+        return f"openai:{self.model}:{self.voice}:speed={self.speed:g}:{instruction_digest}"
 
     def synthesize(self, text: str, language: str, output_path: Path) -> None:
         try:
@@ -71,6 +77,7 @@ class OpenAITtsProvider:
                 "voice": self.voice,
                 "input": text,
                 "response_format": "wav",
+                "speed": self.speed,
             }
             language_instruction = _LANGUAGE_INSTRUCTIONS.get(language)
             instructions = " ".join(

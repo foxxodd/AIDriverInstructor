@@ -404,6 +404,8 @@ def test_openai_tts_uses_quality_voice_and_language_instruction(
 
     assert loaded_keys == ["local-test-key"]
     assert requests[0]["voice"] == "cedar"
+    assert requests[0]["speed"] == 1.5
     assert "natural Russian pronunciation" in str(requests[0]["instructions"])
     assert (tmp_path / "test.wav").read_bytes() == b"RIFF"
     assert provider.provider_id != OpenAITtsProvider(instructions="Different delivery").provider_id
+    assert provider.provider_id != OpenAITtsProvider(speed=1.7).provider_id

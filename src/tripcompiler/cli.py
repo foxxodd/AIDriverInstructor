@@ -28,6 +28,7 @@ from tripcompiler.track import build_track_profile, write_track_profile
 from tripcompiler.tts import (
     DEFAULT_OPENAI_INSTRUCTIONS,
     DEFAULT_OPENAI_MODEL,
+    DEFAULT_OPENAI_SPEED,
     DEFAULT_OPENAI_VOICE,
     OpenAITtsProvider,
     TtsError,
@@ -163,6 +164,7 @@ def _openai_provider(args: argparse.Namespace) -> TtsProvider:
     return OpenAITtsProvider(
         model=args.model,
         voice=args.voice,
+        speed=args.speed,
         instructions=args.instructions,
         env_file=Path(args.env_file) if args.env_file else None,
     )
@@ -274,10 +276,21 @@ def _add_language_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--lead-time", type=float, default=5.0, help="Target call lead time")
 
 
+def _speech_speed(value: str) -> float:
+    try:
+        speed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Speech speed must be a number") from exc
+    if not 0.25 <= speed <= 4.0:
+        raise argparse.ArgumentTypeError("Speech speed must be between 0.25 and 4.0")
+    return speed
+
+
 def _add_openai_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--provider", choices=("openai",), default="openai")
     parser.add_argument("--model", default=DEFAULT_OPENAI_MODEL)
     parser.add_argument("--voice", default=DEFAULT_OPENAI_VOICE)
+    parser.add_argument("--speed", type=_speech_speed, default=DEFAULT_OPENAI_SPEED)
     parser.add_argument("--instructions", default=DEFAULT_OPENAI_INSTRUCTIONS)
     parser.add_argument(
         "--env-file",

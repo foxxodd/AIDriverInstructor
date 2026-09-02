@@ -73,9 +73,9 @@ is deliberately moved out of the real-time loop:
 - `prepare-wrc-pacenotes` generates every non-English route catalog with one language argument;
 - `prepare-wrc-audio` requires one `<location_id>-<route_id>` to bound API cost;
 - identical phrases within the selected route share one OpenAI-generated WAV file;
-- the default `cedar` voice receives rally-specific delivery and language instructions;
-- content-addressed filenames prevent repeated synthesis when model, voice, instructions, text,
-  and language are unchanged;
+- the default `cedar` voice uses API speed `1.5` plus clipped rally delivery instructions;
+- content-addressed filenames prevent repeated synthesis when model, voice, speed, instructions,
+  text, and language are unchanged;
 - the live process performs no model inference and no network request.
 
 This design avoids a premature rewrite in another language. If profiling later shows that Python
