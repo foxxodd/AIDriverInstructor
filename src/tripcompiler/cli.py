@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 from dataclasses import asdict
 from datetime import datetime
 from importlib.resources import files
@@ -24,7 +23,9 @@ from tripcompiler.pacenotes import (
 from tripcompiler.schema import PacketDecoder, load_decoder
 from tripcompiler.track import build_track_profile, write_track_profile
 from tripcompiler.tts import (
-    CommandTtsProvider,
+    DEFAULT_OPENAI_INSTRUCTIONS,
+    DEFAULT_OPENAI_MODEL,
+    DEFAULT_OPENAI_VOICE,
     OpenAITtsProvider,
     TtsError,
     TtsProvider,
@@ -156,39 +157,11 @@ def _cmd_import_notes(args: argparse.Namespace) -> int:
 
 def _cmd_prepare_voice(args: argparse.Namespace) -> int:
     note_set = load_pace_notes(Path(args.notes))
-    provider: TtsProvider
-    if args.provider == "openai":
-        provider = OpenAITtsProvider(
-            model=args.model,
-            voice=args.voice,
-            instructions=args.instructions,
-        )
-    else:
-        if not args.piper_model:
-            raise TtsError("--piper-model is required for the piper provider")
-        executable = Path(args.piper_executable)
-        if shutil.which(args.piper_executable) is None and not executable.is_file():
-            raise TtsError(
-                f"Piper executable not found: {args.piper_executable!r}. "
-                "Install it with 'python -m pip install piper-tts' or pass "
-                "--piper-executable."
-            )
-        model = Path(args.piper_model)
-        if not model.is_file():
-            raise TtsError(f"Piper voice model not found: {model}")
-        model_config = Path(f"{model}.json")
-        if not model_config.is_file():
-            raise TtsError(f"Piper voice model configuration not found: {model_config}")
-        provider = CommandTtsProvider(
-            (
-                args.piper_executable,
-                "-m",
-                args.piper_model,
-                "-f",
-                "{output}",
-            ),
-            name=f"piper:{Path(args.piper_model).name}",
-        )
+    provider: TtsProvider = OpenAITtsProvider(
+        model=args.model,
+        voice=args.voice,
+        instructions=args.instructions,
+    )
     manifest = prepare_audio_cache(
         note_set,
         args.language,
@@ -308,15 +281,13 @@ def build_parser() -> argparse.ArgumentParser:
     voice.add_argument("notes", help="Native pace_notes.json")
     voice.add_argument("--output", required=True, help="Audio cache directory")
     voice.add_argument("--language", choices=available_pace_note_languages(), default="en")
-    voice.add_argument("--provider", choices=("openai", "piper"), default="openai")
-    voice.add_argument("--model", default="gpt-4o-mini-tts")
-    voice.add_argument("--voice", default="coral")
+    voice.add_argument("--provider", choices=("openai",), default="openai")
+    voice.add_argument("--model", default=DEFAULT_OPENAI_MODEL)
+    voice.add_argument("--voice", default=DEFAULT_OPENAI_VOICE)
     voice.add_argument(
         "--instructions",
-        default="Speak quickly and clearly like a professional rally co-driver.",
+        default=DEFAULT_OPENAI_INSTRUCTIONS,
     )
-    voice.add_argument("--piper-executable", default="piper")
-    voice.add_argument("--piper-model", help="Piper ONNX voice model")
     voice.set_defaults(func=_cmd_prepare_voice)
 
     preview = sub.add_parser(

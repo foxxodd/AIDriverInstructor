@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from tripcompiler.cli import main
+from tripcompiler.cli import build_parser, main
 
 
 def _schemas(tmp_path: Path) -> tuple[Path, Path]:
@@ -67,51 +67,20 @@ def test_compile_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert (output / "summary.json").is_file()
 
 
-def test_prepare_voice_reports_missing_piper(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: Any,
-) -> None:
-    notes = tmp_path / "pace_notes.json"
-    notes.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "source": "test",
-                "location_id": 27,
-                "route_id": 360,
-                "languages": ["en", "ru"],
-                "notes": [],
-                "provenance": {},
-            }
-        ),
-        encoding="utf-8",
-    )
-    output = tmp_path / "audio"
-    monkeypatch.setattr(
-        sys,
-        "argv",
+def test_prepare_voice_uses_openai_quality_defaults() -> None:
+    args = build_parser().parse_args(
         [
-            "tripcompiler",
             "prepare-wrc-voice",
-            str(notes),
+            "pace_notes.json",
             "--output",
-            str(output),
-            "--provider",
-            "piper",
-            "--piper-executable",
-            str(tmp_path / "missing-piper.exe"),
-            "--piper-model",
-            str(tmp_path / "missing-model.onnx"),
-        ],
+            "audio",
+        ]
     )
 
-    with pytest.raises(SystemExit) as raised:
-        main()
-
-    assert raised.value.code == 2
-    assert "Piper executable not found" in capsys.readouterr().err
-    assert not output.exists()
+    assert args.provider == "openai"
+    assert args.model == "gpt-4o-mini-tts"
+    assert args.voice == "cedar"
+    assert "highly intelligible" in args.instructions
 
 
 def test_existing_output_reports_concise_error(

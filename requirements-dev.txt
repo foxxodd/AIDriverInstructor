@@ -1,0 +1,2 @@
+# Editable development installation with tests, quality tools, and OpenAI speech support.
+-e .[dev,tts]

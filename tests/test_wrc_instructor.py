@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import math
-import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -30,7 +30,7 @@ from tripcompiler.track import (
     load_track_profile,
     write_track_profile,
 )
-from tripcompiler.tts import CommandTtsProvider, TtsError, prepare_audio_cache
+from tripcompiler.tts import OpenAITtsProvider, prepare_audio_cache
 from tripcompiler.wrc_catalog import enrich_wrc_metadata, load_wrc_catalog
 
 
@@ -319,19 +319,29 @@ class _FakeTts:
         output_path.write_bytes(f"{language}:{text}".encode())
 
 
-def test_command_tts_reports_subprocess_stderr(
+def test_openai_tts_uses_quality_voice_and_language_instruction(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fail(*args: object, **kwargs: object) -> None:
-        raise subprocess.CalledProcessError(
-            1,
-            ["piper"],
-            stderr="traceback\nONNX model Protobuf parsing failed",
-        )
+    requests: list[dict[str, object]] = []
 
-    monkeypatch.setattr("tripcompiler.tts.subprocess.run", fail)
-    provider = CommandTtsProvider(("piper", "-f", "{output}"), name="piper:test")
+    def write_to_file(output_path: Path) -> None:
+        output_path.write_bytes(b"RIFF")
 
-    with pytest.raises(TtsError, match="ONNX model Protobuf parsing failed"):
-        provider.synthesize("test", "en", tmp_path / "test.wav")
+    def create(**request: object) -> SimpleNamespace:
+        requests.append(request)
+        return SimpleNamespace(write_to_file=write_to_file)
+
+    client = SimpleNamespace(
+        audio=SimpleNamespace(speech=SimpleNamespace(create=create)),
+    )
+    module = SimpleNamespace(OpenAI=lambda: client)
+    monkeypatch.setattr("tripcompiler.tts.importlib.import_module", lambda name: module)
+
+    provider = OpenAITtsProvider()
+    provider.synthesize("test", "ru", tmp_path / "test.wav")
+
+    assert requests[0]["voice"] == "cedar"
+    assert "natural Russian pronunciation" in str(requests[0]["instructions"])
+    assert (tmp_path / "test.wav").read_bytes() == b"RIFF"
+    assert provider.provider_id != OpenAITtsProvider(instructions="Different delivery").provider_id

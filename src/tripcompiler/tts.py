@@ -5,12 +5,24 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 from tripcompiler.pacenotes import PaceNoteSet
+
+DEFAULT_OPENAI_MODEL = "gpt-4o-mini-tts"
+DEFAULT_OPENAI_VOICE = "cedar"
+DEFAULT_OPENAI_INSTRUCTIONS = (
+    "Speak as a professional rally co-driver. Use a firm, energetic, highly intelligible "
+    "delivery. Keep every call short and urgent, with crisp consonants and no conversational "
+    "filler."
+)
+
+_LANGUAGE_INSTRUCTIONS = {
+    "en": "Use natural English pronunciation.",
+    "ru": "Use natural Russian pronunciation and articulate directions and numbers distinctly.",
+}
 
 
 class TtsError(RuntimeError):
@@ -30,13 +42,18 @@ class TtsProvider(Protocol):
 class OpenAITtsProvider:
     """OpenAI Speech API backend loaded only when the optional SDK is installed."""
 
-    model: str = "gpt-4o-mini-tts"
-    voice: str = "coral"
-    instructions: str = "Speak quickly and clearly like a professional rally co-driver."
+    model: str = DEFAULT_OPENAI_MODEL
+    voice: str = DEFAULT_OPENAI_VOICE
+    instructions: str = DEFAULT_OPENAI_INSTRUCTIONS
 
     @property
     def provider_id(self) -> str:
-        return f"openai:{self.model}:{self.voice}"
+        instruction_config = json.dumps(
+            {"base": self.instructions, "languages": _LANGUAGE_INSTRUCTIONS},
+            sort_keys=True,
+        )
+        instruction_digest = hashlib.sha256(instruction_config.encode()).hexdigest()[:12]
+        return f"openai:{self.model}:{self.voice}:{instruction_digest}"
 
     def synthesize(self, text: str, language: str, output_path: Path) -> None:
         try:
@@ -49,8 +66,12 @@ class OpenAITtsProvider:
                 "input": text,
                 "response_format": "wav",
             }
-            if self.instructions:
-                request["instructions"] = self.instructions
+            language_instruction = _LANGUAGE_INSTRUCTIONS.get(language)
+            instructions = " ".join(
+                part for part in (self.instructions, language_instruction) if part
+            )
+            if instructions:
+                request["instructions"] = instructions
             response = client.audio.speech.create(**request)
             response.write_to_file(output_path)
         except (ImportError, AttributeError) as exc:
@@ -59,47 +80,6 @@ class OpenAITtsProvider:
             raise TtsError(
                 f"OpenAI speech synthesis failed for language {language}: {exc}"
             ) from exc
-
-
-@dataclass(frozen=True, slots=True)
-class CommandTtsProvider:
-    """Offline backend that passes text on stdin to Piper or another executable."""
-
-    command: tuple[str, ...]
-    name: str = "command"
-
-    @property
-    def provider_id(self) -> str:
-        return self.name
-
-    def synthesize(self, text: str, language: str, output_path: Path) -> None:
-        if not self.command:
-            raise TtsError("TTS command cannot be empty")
-        arguments = [
-            item.replace("{output}", str(output_path)).replace("{language}", language)
-            for item in self.command
-        ]
-        try:
-            subprocess.run(
-                arguments,
-                input=text,
-                text=True,
-                check=True,
-                capture_output=True,
-            )
-        except subprocess.CalledProcessError as exc:
-            details = exc.stderr or exc.stdout
-            if isinstance(details, bytes):
-                details = details.decode(errors="replace")
-            if isinstance(details, str) and details.strip():
-                detail = details.strip().splitlines()[-1]
-            else:
-                detail = f"exit status {exc.returncode}"
-            raise TtsError(f"External TTS command failed: {detail}") from exc
-        except OSError as exc:
-            raise TtsError(f"External TTS command failed: {exc}") from exc
-        if not output_path.is_file():
-            raise TtsError("External TTS command did not create the requested output file")
 
 
 def prepare_audio_cache(

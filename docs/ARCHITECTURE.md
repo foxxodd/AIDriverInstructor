@@ -80,9 +80,10 @@ a partial translation in another language.
 
 `scheduler.py` owns safety-critical timing. It uses current stage distance, speed, and a bounded
 lead time; it resets after a detected stage restart. Neither an LLM nor a network round trip is
-in the live timing path. `tts.py` pre-generates content-addressed WAV files through either the
-OpenAI Python SDK or a configurable local command such as Piper. The live player reads only the
-cache manifest.
+in the live timing path. `tts.py` pre-generates content-addressed WAV files through the OpenAI
+Python SDK. The cache key
+includes model, voice, delivery instructions, language, and note text. The live player reads only
+the cache manifest; speech synthesis and network access stay outside the live timing path.
 
 ## Common events
 

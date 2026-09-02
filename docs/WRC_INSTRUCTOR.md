@@ -71,9 +71,9 @@ Python is fast enough for UDP decoding, distance scheduling, and audio queueing.
 is deliberately moved out of the real-time loop:
 
 - the OpenAI provider uses the Python SDK and writes WAV files before the stage;
-- the Piper provider invokes a separately installed local executable and ONNX voice model;
-- content-addressed filenames prevent repeated synthesis when text, language, and provider are
-  unchanged;
+- the default `cedar` voice receives rally-specific delivery and language instructions;
+- content-addressed filenames prevent repeated synthesis when model, voice, instructions, text,
+  and language are unchanged;
 - the live process performs no model inference and no network request.
 
 This design avoids a premature rewrite in another language. If profiling later shows that Python
@@ -83,8 +83,9 @@ and straightforward Python interoperability. C++ remains appropriate only when d
 with a native TTS engine or game plugin makes it necessary.
 
 English (`en`) and Russian (`ru`) are first-class MVP languages. The note schema stores language
-variants under the same stable note ID, so timing is language-independent. Voice model licenses
-vary and must be checked before distribution.
+variants under the same stable note ID, so timing is language-independent. OpenAI speech is the
+only supported MVP backend after Piper failed the Russian intelligibility target. A future local
+backend must meet both multilingual quality and redistribution-license requirements.
 
 ## Operational safety
 

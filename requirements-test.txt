@@ -1,0 +1,2 @@
+# Test installation without development-only tools or external speech access.
+.[test]

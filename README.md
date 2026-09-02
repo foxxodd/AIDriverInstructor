@@ -25,7 +25,7 @@ src/tripcompiler/
   locales/pacenotes/en.json    English Zendrive phrase dictionary
   locales/pacenotes/ru.json    Russian Zendrive phrase dictionary
   scheduler.py                 deterministic real-time call scheduler
-  tts.py                       cached OpenAI or Piper speech generation
+  tts.py                       cached OpenAI speech generation
 tests/
 docs/
 drive_logs/                    immutable source captures, ignored by Git
@@ -42,8 +42,18 @@ cd C:\projects\AIDriverInstructor
 py -3.10 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -r requirements-dev.txt
 ```
+
+The repository provides separate installation entry points:
+
+- `requirements.txt` — production runtime with OpenAI speech support;
+- `requirements-test.txt` — the application and test runner only;
+- `requirements-dev.txt` — editable application, tests, linting, type checking, pre-commit, and
+  OpenAI speech support.
+
+Install another environment with `python -m pip install -r <requirements-file>`. Dependency versions
+remain defined once in `pyproject.toml`; the requirements files select the appropriate extras.
 
 All command examples below are intentionally shown on one line. A PowerShell backtick is therefore
 not required.
@@ -176,44 +186,31 @@ call so its note distance and trigger distance can be reviewed first.
 
 Speech is generated once and cached as WAV files. No TTS request runs in the live scheduling loop.
 
-For OpenAI speech, install the optional SDK and configure `OPENAI_API_KEY` in the environment:
+OpenAI Speech API is the supported MVP speech backend. It is installed by both
+`requirements.txt` and `requirements-dev.txt`. Configure `OPENAI_API_KEY` in the environment, then
+build a new Russian audio cache:
 
 ```powershell
-python -m pip install -e ".[tts]"
-tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-ru" --provider openai --language ru
+tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-openai-ru" --language ru
 ```
 
-For local Piper speech, install the official Python package into the active virtual environment:
+The defaults are `gpt-4o-mini-tts` and the `cedar` voice, with concise rally-specific delivery
+instructions and an explicit native-language pronunciation instruction. OpenAI also recommends
+`marin` for high quality, so it can be compared without changing the code:
 
 ```powershell
-python -m pip install piper-tts
-python -m piper.download_voices --data-dir "C:\voices" ru_RU-denis-medium
+tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-marin-ru" --language ru --voice marin
 ```
 
-The download command creates both `ru_RU-denis-medium.onnx` and its required adjacent
-`ru_RU-denis-medium.onnx.json` configuration. Verify the installation:
+Model, voice, instructions, language, and note text contribute to the content-addressed cache key.
+Changing any of them generates new WAV files rather than reusing calls with obsolete delivery.
+Speech is synthesized before the stage; the live loop makes no network request. API synthesis may
+incur usage charges. Products exposing these recordings must clearly disclose that the voice is
+AI-generated, as required by the [OpenAI text-to-speech guide](https://developers.openai.com/api/docs/guides/text-to-speech).
 
-```powershell
-.\.venv\Scripts\piper.exe --help
-Test-Path "C:\voices\ru_RU-denis-medium.onnx"
-Test-Path "C:\voices\ru_RU-denis-medium.onnx.json"
-```
-
-Both `Test-Path` commands must print `True`. Then build the Russian audio cache:
-
-```powershell
-tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-ru" --provider piper --language ru --piper-executable ".\.venv\Scripts\piper.exe" --piper-model "C:\voices\ru_RU-denis-medium.onnx"
-```
-
-If Piper reports `INVALID_PROTOBUF` or `Protobuf parsing failed`, the ONNX download is incomplete.
-Force both voice files to be downloaded again, then repeat the cache command:
-
-```powershell
-python -m piper.download_voices --force-redownload --data-dir "C:\voices" ru_RU-denis-medium
-```
-
-Piper and its voice models are not bundled. Piper is GPL-3.0; the Denis voice model card identifies
-its source dataset as CC0. Review the engine and selected voice licenses before redistribution.
+Piper is no longer a supported provider in this MVP because its available Russian voice did not
+meet the intelligibility target. A local backend can return later when a multilingual model meets
+both quality and redistribution-license requirements.
 
 ### 7. Run the external live co-driver
 
@@ -223,7 +220,7 @@ Add a second WRC UDP `session_update` entry with the same `wrc_ai_instructor` st
 Run the co-driver with the prepared cache:
 
 ```powershell
-tripcompiler run-wrc-codriver "compiled_trips\wrc_20260830_124128\pace_notes.json" --language ru --audio-dir "compiled_trips\wrc_20260830_124128\audio-ru"
+tripcompiler run-wrc-codriver "compiled_trips\wrc_20260830_124128\pace_notes.json" --language ru --audio-dir "compiled_trips\wrc_20260830_124128\audio-openai-ru"
 ```
 
 Mute the built-in WRC co-driver when testing the external one. The live process only decodes UDP,
