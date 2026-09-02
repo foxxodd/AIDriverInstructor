@@ -187,6 +187,107 @@ def import_zendrive_pace_notes(
     )
 
 
+def pace_note_route_paths(directory: Path, route_code: str | None = None) -> tuple[Path, ...]:
+    """Return numeric location-route JSON files from a pace-note catalog."""
+
+    if route_code is not None:
+        location_id, route_id = _ids_from_stem(route_code)
+        if location_id is None or route_id is None:
+            raise PaceNoteError("Route code must use the <location_id>-<route_id> format")
+        path = directory / f"{route_code}.json"
+        if not path.is_file():
+            raise PaceNoteError(f"Pace-note route not found: {path}")
+        return (path,)
+    paths = tuple(
+        path
+        for path in sorted(directory.glob("*.json"))
+        if all(value is not None for value in _ids_from_stem(path.stem))
+    )
+    if not paths:
+        raise PaceNoteError(f"No location-route pace-note files found in {directory}")
+    return paths
+
+
+def prepare_localized_pace_note_catalog(
+    source_dir: Path,
+    output_dir: Path,
+    language: str,
+    *,
+    route_code: str | None = None,
+) -> dict[str, Any]:
+    """Generate a single-language native catalog from Zendrive-compatible files."""
+
+    if language == "en":
+        raise PaceNoteError("English is already the source language; select another language")
+    if language not in available_pace_note_languages():
+        raise PaceNoteError(f"Unsupported pace-note language: {language}")
+    if source_dir.resolve() == output_dir.resolve():
+        raise PaceNoteError("Localized output must differ from the source catalog")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for source_path in pace_note_route_paths(source_dir, route_code):
+        note_set = import_zendrive_pace_notes(source_path)
+        missing = [note.note_id for note in note_set.notes if language not in note.texts]
+        if missing:
+            raise PaceNoteError(
+                f"Route {source_path.stem} has {len(missing)} notes without {language} text"
+            )
+        localized_notes = tuple(
+            PaceNote(
+                note_id=note.note_id,
+                distance_m=note.distance_m,
+                kind=note.kind,
+                direction=note.direction,
+                severity=note.severity,
+                modifiers=note.modifiers,
+                texts={language: note.texts[language]},
+                confidence=note.confidence,
+            )
+            for note in note_set.notes
+        )
+        localized_set = PaceNoteSet(
+            schema_version=note_set.schema_version,
+            source=note_set.source,
+            location_id=note_set.location_id,
+            route_id=note_set.route_id,
+            languages=(language,),
+            notes=localized_notes,
+            provenance={**note_set.provenance, "localized_language": language},
+        )
+        target = output_dir / source_path.name
+        target.write_text(
+            json.dumps(localized_set.to_dict(), indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    routes: list[dict[str, Any]] = []
+    unique_calls: set[str] = set()
+    for target in pace_note_route_paths(output_dir):
+        localized_set = load_pace_notes(target)
+        if language not in localized_set.languages:
+            raise PaceNoteError(f"Generated route {target.stem} is not localized as {language}")
+        unique_calls.update(note.texts[language] for note in localized_set.notes)
+        routes.append(
+            {
+                "route_code": target.stem,
+                "file": target.name,
+                "notes": len(localized_set.notes),
+            }
+        )
+
+    manifest = {
+        "schema_version": 1,
+        "language": language,
+        "source_directory": str(source_dir),
+        "routes": routes,
+        "unique_calls": len(unique_calls),
+    }
+    (output_dir / "catalog.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return manifest
+
+
 def write_pace_notes(path: Path, note_set: PaceNoteSet) -> None:
     """Write editable notes without replacing existing user corrections."""
 

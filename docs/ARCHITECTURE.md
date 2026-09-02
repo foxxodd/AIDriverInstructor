@@ -72,6 +72,10 @@ looks for `<location_id>-<route_id>.json` in the ignored local Zendrive catalog 
 native schema stores stable note IDs, stage distances, structured corner fields, localized text,
 confidence, and provenance. Imported third-party data retains a mandatory license-review marker.
 
+`prepare-wrc-pacenotes --language <code>` converts every numeric source route into an ignored
+`pacenotes_<language>/` catalog. An optional `<location_id>-<route_id>` filter limits the batch
+to one route. Generated language catalogs contain only the selected language and can be refreshed.
+
 `localization.py` discovers packaged exact-phrase dictionaries under
 `locales/pacenotes/<language>.json`. English and Russian currently cover the complete vocabulary
 of the audited Zendrive snapshot. Adding a language is a data-only change when its dictionary has
@@ -81,9 +85,11 @@ a partial translation in another language.
 `scheduler.py` owns safety-critical timing. It uses current stage distance, speed, and a bounded
 lead time; it resets after a detected stage restart. Neither an LLM nor a network round trip is
 in the live timing path. `tts.py` pre-generates content-addressed WAV files through the OpenAI
-Python SDK. The cache key
-includes model, voice, delivery instructions, language, and note text. The live player reads only
-the cache manifest; speech synthesis and network access stay outside the live timing path.
+Python SDK. Because the complete Russian catalog contains 7,290 composed calls, the audio command
+requires one `<location_id>-<route_id>` selection. It deduplicates identical calls on that route and
+writes a shared WAV store plus its live-player manifest. The cache key includes model, voice,
+delivery instructions, language, and note text. The live player reads only its route manifest;
+speech synthesis and network access stay outside the live timing path.
 
 ## Common events
 

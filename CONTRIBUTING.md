@@ -5,7 +5,7 @@ Use Python 3.10 and create a virtual environment before installing the project:
 ```powershell
 py -3.10 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements/dev.txt
 ```
 
 Before committing, run `python -m ruff check .`, `python -m ruff format --check .`,

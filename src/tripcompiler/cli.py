@@ -16,8 +16,11 @@ from tripcompiler.codriver import preview_codriver, run_live_codriver
 from tripcompiler.compiler import SourceKind, compile_trip, load_capture, wrc_metadata
 from tripcompiler.localization import available_pace_note_languages
 from tripcompiler.pacenotes import (
+    PaceNoteError,
     import_zendrive_pace_notes,
     load_pace_notes,
+    pace_note_route_paths,
+    prepare_localized_pace_note_catalog,
     write_pace_notes,
 )
 from tripcompiler.schema import PacketDecoder, load_decoder
@@ -30,6 +33,7 @@ from tripcompiler.tts import (
     TtsError,
     TtsProvider,
     prepare_audio_cache,
+    prepare_audio_catalog,
 )
 from tripcompiler.wrc_catalog import enrich_wrc_metadata, load_wrc_catalog
 
@@ -155,13 +159,54 @@ def _cmd_import_notes(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_prepare_voice(args: argparse.Namespace) -> int:
-    note_set = load_pace_notes(Path(args.notes))
-    provider: TtsProvider = OpenAITtsProvider(
+def _openai_provider(args: argparse.Namespace) -> TtsProvider:
+    return OpenAITtsProvider(
         model=args.model,
         voice=args.voice,
         instructions=args.instructions,
+        env_file=Path(args.env_file) if args.env_file else None,
     )
+
+
+def _cmd_prepare_pacenote_catalog(args: argparse.Namespace) -> int:
+    source = Path(args.source) if args.source else _default_pacenotes_dir()
+    output = Path(args.output) if args.output else Path(f"pacenotes_{args.language}")
+    manifest = prepare_localized_pace_note_catalog(
+        source,
+        output,
+        args.language,
+        route_code=args.route,
+    )
+    summary = {
+        "pace_notes_directory": str(output),
+        "language": manifest["language"],
+        "routes": len(manifest["routes"]),
+        "notes": sum(route["notes"] for route in manifest["routes"]),
+        "unique_calls": manifest["unique_calls"],
+    }
+    print(json.dumps(summary, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _cmd_prepare_audio_catalog(args: argparse.Namespace) -> int:
+    notes_dir = Path(args.notes_dir) if args.notes_dir else Path(f"pacenotes_{args.language}")
+    output = Path(args.output) if args.output else Path(f"audio_{args.language}")
+    note_sets = {
+        path.stem: load_pace_notes(path) for path in pace_note_route_paths(notes_dir, args.route)
+    }
+    manifest = prepare_audio_catalog(
+        note_sets,
+        args.language,
+        _openai_provider(args),
+        output,
+    )
+    print(json.dumps(manifest, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _cmd_prepare_voice(args: argparse.Namespace) -> int:
+    note_set = load_pace_notes(Path(args.notes))
+    provider = _openai_provider(args)
     manifest = prepare_audio_cache(
         note_set,
         args.language,
@@ -229,6 +274,18 @@ def _add_language_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--lead-time", type=float, default=5.0, help="Target call lead time")
 
 
+def _add_openai_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--provider", choices=("openai",), default="openai")
+    parser.add_argument("--model", default=DEFAULT_OPENAI_MODEL)
+    parser.add_argument("--voice", default=DEFAULT_OPENAI_VOICE)
+    parser.add_argument("--instructions", default=DEFAULT_OPENAI_INSTRUCTIONS)
+    parser.add_argument(
+        "--env-file",
+        default=".env.dev",
+        help="Local environment file; existing process variables take precedence",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tripcompiler",
@@ -277,17 +334,59 @@ def build_parser() -> argparse.ArgumentParser:
     import_notes.add_argument("--route-id", type=int)
     import_notes.set_defaults(func=_cmd_import_notes)
 
-    voice = sub.add_parser("prepare-wrc-voice", help="Pre-generate cached WAV pace-note calls")
+    localized_notes = sub.add_parser(
+        "prepare-wrc-pacenotes",
+        help="Generate a localized native pace-note catalog",
+    )
+    localized_notes.add_argument(
+        "--language",
+        required=True,
+        choices=tuple(language for language in available_pace_note_languages() if language != "en"),
+    )
+    localized_notes.add_argument(
+        "--source",
+        help="Zendrive-compatible source directory; defaults to pacenotes/zendrive/pacenotes",
+    )
+    localized_notes.add_argument(
+        "--output",
+        help="Output directory; defaults to pacenotes_<language>",
+    )
+    localized_notes.add_argument(
+        "--route",
+        help="Optional <location_id>-<route_id> filter, for example 27-360",
+    )
+    localized_notes.set_defaults(func=_cmd_prepare_pacenote_catalog)
+
+    audio_catalog = sub.add_parser(
+        "prepare-wrc-audio",
+        help="Generate deduplicated audio for a localized pace-note catalog",
+    )
+    audio_catalog.add_argument(
+        "--language",
+        required=True,
+        choices=tuple(language for language in available_pace_note_languages() if language != "en"),
+    )
+    audio_catalog.add_argument(
+        "--notes-dir",
+        help="Localized notes directory; defaults to pacenotes_<language>",
+    )
+    audio_catalog.add_argument(
+        "--output",
+        help="Audio catalog directory; defaults to audio_<language>",
+    )
+    audio_catalog.add_argument(
+        "--route",
+        required=True,
+        help="Required <location_id>-<route_id> code that limits API usage",
+    )
+    _add_openai_arguments(audio_catalog)
+    audio_catalog.set_defaults(func=_cmd_prepare_audio_catalog)
+
+    voice = sub.add_parser("prepare-wrc-voice", help="Pre-generate one route WAV cache")
     voice.add_argument("notes", help="Native pace_notes.json")
     voice.add_argument("--output", required=True, help="Audio cache directory")
     voice.add_argument("--language", choices=available_pace_note_languages(), default="en")
-    voice.add_argument("--provider", choices=("openai",), default="openai")
-    voice.add_argument("--model", default=DEFAULT_OPENAI_MODEL)
-    voice.add_argument("--voice", default=DEFAULT_OPENAI_VOICE)
-    voice.add_argument(
-        "--instructions",
-        default=DEFAULT_OPENAI_INSTRUCTIONS,
-    )
+    _add_openai_arguments(voice)
     voice.set_defaults(func=_cmd_prepare_voice)
 
     preview = sub.add_parser(
@@ -317,7 +416,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return int(args.func(args))
-    except (FileExistsError, TtsError) as exc:
+    except (FileExistsError, PaceNoteError, TtsError) as exc:
         parser.exit(2, f"error: {exc}\n")
 
 

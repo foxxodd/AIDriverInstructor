@@ -18,3 +18,6 @@ build/
 drive_logs/
 compiled_trips/
 /pacenotes/
+/pacenotes_*/
+/audio_*/
+.env.dev

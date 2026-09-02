@@ -5,9 +5,12 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+
+from dotenv import load_dotenv
 
 from tripcompiler.pacenotes import PaceNoteSet
 
@@ -45,6 +48,7 @@ class OpenAITtsProvider:
     model: str = DEFAULT_OPENAI_MODEL
     voice: str = DEFAULT_OPENAI_VOICE
     instructions: str = DEFAULT_OPENAI_INSTRUCTIONS
+    env_file: Path | None = Path(".env.dev")
 
     @property
     def provider_id(self) -> str:
@@ -57,6 +61,8 @@ class OpenAITtsProvider:
 
     def synthesize(self, text: str, language: str, output_path: Path) -> None:
         try:
+            if self.env_file is not None:
+                load_dotenv(dotenv_path=self.env_file, override=False)
             module = importlib.import_module("openai")
             client_class = module.OpenAI
             client: Any = client_class()
@@ -120,3 +126,81 @@ def prepare_audio_cache(
         encoding="utf-8",
     )
     return manifest
+
+
+def prepare_audio_catalog(
+    note_sets: Mapping[str, PaceNoteSet],
+    language: str,
+    provider: TtsProvider,
+    output_dir: Path,
+) -> dict[str, Any]:
+    """Generate deduplicated speech and one cache manifest per route."""
+
+    if not note_sets:
+        raise TtsError("Audio catalog requires at least one pace-note route")
+    files_dir = output_dir / "files"
+    routes_dir = output_dir / "routes"
+    files_dir.mkdir(parents=True, exist_ok=True)
+    routes_dir.mkdir(parents=True, exist_ok=True)
+
+    route_summaries: list[dict[str, Any]] = []
+    unique_files: set[str] = set()
+    synthesized_files = 0
+    for route_code, note_set in sorted(note_sets.items()):
+        entries: dict[str, dict[str, Any]] = {}
+        for note in note_set.notes:
+            text = note.texts.get(language)
+            if text is None:
+                raise TtsError(f"Route {route_code} note {note.note_id} has no {language} text")
+            digest = hashlib.sha256(
+                f"{provider.provider_id}\0{language}\0{text}".encode()
+            ).hexdigest()[:16]
+            filename = f"{language}-{digest}.wav"
+            audio_path = files_dir / filename
+            if not audio_path.is_file():
+                provider.synthesize(text, language, audio_path)
+                synthesized_files += 1
+            unique_files.add(filename)
+            entries[note.note_id] = {
+                "file": f"../../files/{filename}",
+                "language": language,
+                "text": text,
+                "provider": provider.provider_id,
+            }
+
+        route_dir = routes_dir / route_code
+        route_dir.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "schema_version": 1,
+            "route_code": route_code,
+            "location_id": note_set.location_id,
+            "route_id": note_set.route_id,
+            "language": language,
+            "provider": provider.provider_id,
+            "entries": entries,
+        }
+        (route_dir / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        route_summaries.append(
+            {
+                "route_code": route_code,
+                "manifest": f"routes/{route_code}/manifest.json",
+                "notes": len(entries),
+            }
+        )
+
+    catalog = {
+        "schema_version": 1,
+        "language": language,
+        "provider": provider.provider_id,
+        "routes": route_summaries,
+        "unique_audio_files": len(unique_files),
+        "synthesized_audio_files": synthesized_files,
+    }
+    (output_dir / "catalog.json").write_text(
+        json.dumps(catalog, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return catalog

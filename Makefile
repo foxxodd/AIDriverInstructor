@@ -1,7 +1,7 @@
 .PHONY: install lint format typecheck test check
 
 install:
-	python -m pip install -r requirements-dev.txt
+	python -m pip install -r requirements/dev.txt
 
 lint:
 	python -m ruff check .

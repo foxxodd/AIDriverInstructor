@@ -1,0 +1,2 @@
+# Complete test installation, including production speech dependencies.
+.[test,tts]

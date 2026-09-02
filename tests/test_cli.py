@@ -83,6 +83,22 @@ def test_prepare_voice_uses_openai_quality_defaults() -> None:
     assert "highly intelligible" in args.instructions
 
 
+def test_batch_catalog_commands_use_language_defaults() -> None:
+    notes_args = build_parser().parse_args(["prepare-wrc-pacenotes", "--language", "ru"])
+    audio_args = build_parser().parse_args(
+        ["prepare-wrc-audio", "--language", "ru", "--route", "27-360"]
+    )
+
+    assert notes_args.output is None
+    assert notes_args.source is None
+    assert audio_args.notes_dir is None
+    assert audio_args.output is None
+    assert audio_args.route == "27-360"
+    assert audio_args.env_file == ".env.dev"
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["prepare-wrc-audio", "--language", "ru"])
+
+
 def test_existing_output_reports_concise_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

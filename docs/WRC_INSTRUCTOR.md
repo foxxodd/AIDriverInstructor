@@ -70,7 +70,9 @@ Until such evidence exists, width-dependent coaching remains disabled.
 Python is fast enough for UDP decoding, distance scheduling, and audio queueing. Speech synthesis
 is deliberately moved out of the real-time loop:
 
-- the OpenAI provider uses the Python SDK and writes WAV files before the stage;
+- `prepare-wrc-pacenotes` generates every non-English route catalog with one language argument;
+- `prepare-wrc-audio` requires one `<location_id>-<route_id>` to bound API cost;
+- identical phrases within the selected route share one OpenAI-generated WAV file;
 - the default `cedar` voice receives rally-specific delivery and language instructions;
 - content-addressed filenames prevent repeated synthesis when model, voice, instructions, text,
   and language are unchanged;
@@ -84,8 +86,9 @@ with a native TTS engine or game plugin makes it necessary.
 
 English (`en`) and Russian (`ru`) are first-class MVP languages. The note schema stores language
 variants under the same stable note ID, so timing is language-independent. OpenAI speech is the
-only supported MVP backend after Piper failed the Russian intelligibility target. A future local
-backend must meet both multilingual quality and redistribution-license requirements.
+only supported MVP backend after Piper failed the Russian intelligibility target. Local development
+loads the ignored `.env.dev`; production reads `OPENAI_API_KEY` from a GitHub environment secret.
+A future local backend must meet both multilingual quality and redistribution-license requirements.
 
 ## Operational safety
 

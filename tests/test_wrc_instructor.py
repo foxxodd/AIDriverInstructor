@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +22,7 @@ from tripcompiler.pacenotes import (
     generate_pace_notes,
     import_zendrive_pace_notes,
     load_pace_notes,
+    prepare_localized_pace_note_catalog,
     write_pace_notes,
 )
 from tripcompiler.scheduler import PaceNoteScheduler
@@ -30,7 +32,7 @@ from tripcompiler.track import (
     load_track_profile,
     write_track_profile,
 )
-from tripcompiler.tts import OpenAITtsProvider, prepare_audio_cache
+from tripcompiler.tts import OpenAITtsProvider, prepare_audio_cache, prepare_audio_catalog
 from tripcompiler.wrc_catalog import enrich_wrc_metadata, load_wrc_catalog
 
 
@@ -241,6 +243,29 @@ def test_zendrive_import_is_user_supplied_and_distance_indexed(tmp_path: Path) -
     assert note_set.provenance["requires_user_license_review"] is True
 
 
+def test_localized_catalog_generates_every_route_and_language_only(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "27-360.json").write_text(
+        json.dumps([[10, ["four right"]]]),
+        encoding="utf-8",
+    )
+    (source / "27-361.json").write_text(
+        json.dumps([[20, ["three left"]]]),
+        encoding="utf-8",
+    )
+    output = tmp_path / "pacenotes_ru"
+
+    manifest = prepare_localized_pace_note_catalog(source, output, "ru")
+
+    assert [route["route_code"] for route in manifest["routes"]] == ["27-360", "27-361"]
+    assert manifest["unique_calls"] == 2
+    localized = load_pace_notes(output / "27-360.json")
+    assert localized.languages == ("ru",)
+    assert localized.notes[0].texts == {"ru": "\u043f\u0440\u0430\u0432\u043e 4"}
+    prepare_localized_pace_note_catalog(source, output, "ru", route_code="27-360")
+
+
 def test_scheduler_supports_languages_and_stage_restart() -> None:
     scheduler = PaceNoteScheduler(_native_notes(), language="ru", lead_time_s=2.0)
 
@@ -271,6 +296,33 @@ def test_preview_and_tts_cache_use_same_note_ids(tmp_path: Path) -> None:
     assert set(manifest["entries"]) == {"n1", "n2"}
     assert provider.calls == 2
     prepare_audio_cache(note_set, "en", provider, tmp_path / "audio")
+    assert provider.calls == 2
+
+
+def test_audio_catalog_deduplicates_calls_across_routes(tmp_path: Path) -> None:
+    provider = _FakeTts()
+    note_set = _native_notes()
+
+    catalog = prepare_audio_catalog(
+        {"27-360": note_set, "27-361": note_set},
+        "ru",
+        provider,
+        tmp_path / "audio_ru",
+    )
+
+    assert provider.calls == 2
+    assert catalog["unique_audio_files"] == 2
+    assert catalog["synthesized_audio_files"] == 2
+    route_manifest = json.loads(
+        (tmp_path / "audio_ru" / "routes" / "27-360" / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert route_manifest["entries"]["n1"]["file"].startswith("../../files/ru-")
+    prepare_audio_catalog(
+        {"27-360": note_set},
+        "ru",
+        provider,
+        tmp_path / "audio_ru",
+    )
     assert provider.calls == 2
 
 
@@ -335,12 +387,22 @@ def test_openai_tts_uses_quality_voice_and_language_instruction(
     client = SimpleNamespace(
         audio=SimpleNamespace(speech=SimpleNamespace(create=create)),
     )
-    module = SimpleNamespace(OpenAI=lambda: client)
-    monkeypatch.setattr("tripcompiler.tts.importlib.import_module", lambda name: module)
+    loaded_keys: list[str | None] = []
 
-    provider = OpenAITtsProvider()
+    def create_client() -> SimpleNamespace:
+        loaded_keys.append(os.environ.get("OPENAI_API_KEY"))
+        return client
+
+    module = SimpleNamespace(OpenAI=create_client)
+    monkeypatch.setattr("tripcompiler.tts.importlib.import_module", lambda name: module)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    env_file = tmp_path / ".env.dev"
+    env_file.write_text("OPENAI_API_KEY=local-test-key\n", encoding="utf-8")
+
+    provider = OpenAITtsProvider(env_file=env_file)
     provider.synthesize("test", "ru", tmp_path / "test.wav")
 
+    assert loaded_keys == ["local-test-key"]
     assert requests[0]["voice"] == "cedar"
     assert "natural Russian pronunciation" in str(requests[0]["instructions"])
     assert (tmp_path / "test.wav").read_bytes() == b"RIFF"

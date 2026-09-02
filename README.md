@@ -28,9 +28,12 @@ src/tripcompiler/
   tts.py                       cached OpenAI speech generation
 tests/
 docs/
+requirements/                  production, test, and development install entry points
 drive_logs/                    immutable source captures, ignored by Git
 compiled_trips/                generated artifacts, ignored by Git
 pacenotes/                     local third-party pace-note data, ignored by Git
+pacenotes_<language>/          generated localized catalogs, ignored by Git
+audio_<language>/              generated shared WAV catalogs, ignored by Git
 ```
 
 ## Installation
@@ -42,18 +45,41 @@ cd C:\projects\AIDriverInstructor
 py -3.10 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements/dev.txt
 ```
 
 The repository provides separate installation entry points:
 
-- `requirements.txt` — production runtime with OpenAI speech support;
-- `requirements-test.txt` — the application and test runner only;
-- `requirements-dev.txt` — editable application, tests, linting, type checking, pre-commit, and
+- `requirements/prod.txt` — production runtime with OpenAI speech support;
+- `requirements/test.txt` — production dependencies plus the test runner and coverage;
+- `requirements/dev.txt` — editable application, tests, linting, type checking, pre-commit, and
   OpenAI speech support.
 
-Install another environment with `python -m pip install -r <requirements-file>`. Dependency versions
-remain defined once in `pyproject.toml`; the requirements files select the appropriate extras.
+Each environment is installed completely with one `python -m pip install -r <requirements-file>`
+command. Dependency versions remain defined once in `pyproject.toml`; the requirements files select
+the appropriate extras.
+
+## OpenAI credentials
+
+For local development, copy `.env.dev.example` to the ignored `.env.dev` file and set the key there:
+
+```powershell
+Copy-Item .env.dev.example .env.dev
+notepad .env.dev
+```
+
+TripCompiler loads `.env.dev` before creating the OpenAI client, but never overrides an existing
+process environment variable. Do not commit `.env.dev`.
+
+GitHub production uses the `production` environment and its encrypted `OPENAI_API_KEY` secret. Set
+it interactively without placing the value in a command or repository file:
+
+```powershell
+gh secret set OPENAI_API_KEY --env production
+```
+
+The manually triggered `production configuration` workflow installs `requirements/prod.txt` in one
+command and verifies that the secret exists without printing it or calling the OpenAI API.
 
 All command examples below are intentionally shown on one line. A PowerShell backtick is therefore
 not required.
@@ -123,6 +149,23 @@ To update an existing local checkout:
 git -C pacenotes\zendrive pull --ff-only
 ```
 
+Generate every Russian route in one command:
+
+```powershell
+tripcompiler prepare-wrc-pacenotes --language ru
+```
+
+The command converts every numeric source file into the native single-language schema under the
+ignored `pacenotes_ru\` directory. It writes `catalog.json` plus one `<location_id>-<route_id>.json`
+file per route. Re-running the command refreshes these generated files. To prepare only Taipuha:
+
+```powershell
+tripcompiler prepare-wrc-pacenotes --language ru --route 27-360
+```
+
+The `--route` value always uses the Zendrive/EA `<location_id>-<route_id>` filename code. English is
+the upstream source and is not duplicated into a generated `pacenotes_en` catalog.
+
 ### 3. Record a stage
 
 Start the recorder before entering the stage and stop it with Ctrl+C after the finish:
@@ -172,45 +215,52 @@ tripcompiler compile wrc "drive_logs\wrc\20260830_124128\telemetry.jsonl" --outp
 
 ### 5. Preview co-driver timing
 
-Preview uses the original recording for speed and stage-distance timing, and the compiled primary
-pace-note file for calls:
+Preview uses the original recording for speed and stage-distance timing, and the generated localized
+route file for calls:
 
 ```powershell
-tripcompiler preview-wrc-codriver "drive_logs\wrc\20260830_124128\telemetry.jsonl" "compiled_trips\wrc_20260830_124128\pace_notes.json" --language ru
+tripcompiler preview-wrc-codriver "drive_logs\wrc\20260830_124128\telemetry.jsonl" "pacenotes_ru\27-360.json" --language ru
 ```
 
-Use `--language en` for English. Preview does not synthesize or play audio; it prints every scheduled
-call so its note distance and trigger distance can be reviewed first.
+For English, use the multilingual `pace_notes.json` produced by trip compilation. Preview does not
+synthesize or play audio; it prints every scheduled call so its note distance and trigger distance
+can be reviewed first.
 
 ### 6. Generate speech before the stage
 
 Speech is generated once and cached as WAV files. No TTS request runs in the live scheduling loop.
 
-OpenAI Speech API is the supported MVP speech backend. It is installed by both
-`requirements.txt` and `requirements-dev.txt`. Configure `OPENAI_API_KEY` in the environment, then
-build a new Russian audio cache:
+OpenAI Speech API is the supported MVP speech backend. The complete SDK and local environment loader
+are installed by both `requirements/prod.txt` and `requirements/dev.txt`.
+
+The complete Russian catalog currently contains 7,290 unique composed calls. Generating all of them
+would be expensive and slow, so `--route` is required for audio generation. Generate every call for
+Taipuha in one command:
 
 ```powershell
-tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-openai-ru" --language ru
+tripcompiler prepare-wrc-audio --language ru --route 27-360
 ```
 
-The defaults are `gpt-4o-mini-tts` and the `cedar` voice, with concise rally-specific delivery
-instructions and an explicit native-language pronunciation instruction. OpenAI also recommends
-`marin` for high quality, so it can be compared without changing the code:
+The ignored output is `audio_ru\`. The selected route receives a live-player manifest under
+`audio_ru\routes\27-360\manifest.json`; identical calls within the route share one WAV.
+
+The defaults are `gpt-4o-mini-tts` and `cedar`. OpenAI also recommends `marin` for high quality:
 
 ```powershell
-tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-marin-ru" --language ru --voice marin
+tripcompiler prepare-wrc-audio --language ru --route 27-360 --voice marin --output audio_marin_ru
 ```
 
 Model, voice, instructions, language, and note text contribute to the content-addressed cache key.
-Changing any of them generates new WAV files rather than reusing calls with obsolete delivery.
+Re-running a command synthesizes only missing unique WAV files. The older `prepare-wrc-voice` command
+remains available for one standalone compiled `pace_notes.json` file.
+
 Speech is synthesized before the stage; the live loop makes no network request. API synthesis may
 incur usage charges. Products exposing these recordings must clearly disclose that the voice is
 AI-generated, as required by the [OpenAI text-to-speech guide](https://developers.openai.com/api/docs/guides/text-to-speech).
 
-Piper is no longer a supported provider in this MVP because its available Russian voice did not
-meet the intelligibility target. A local backend can return later when a multilingual model meets
-both quality and redistribution-license requirements.
+Piper is no longer supported because its available Russian voice did not meet the intelligibility
+target. A future local backend must meet both multilingual quality and redistribution-license
+requirements.
 
 ### 7. Run the external live co-driver
 
@@ -220,7 +270,7 @@ Add a second WRC UDP `session_update` entry with the same `wrc_ai_instructor` st
 Run the co-driver with the prepared cache:
 
 ```powershell
-tripcompiler run-wrc-codriver "compiled_trips\wrc_20260830_124128\pace_notes.json" --language ru --audio-dir "compiled_trips\wrc_20260830_124128\audio-openai-ru"
+tripcompiler run-wrc-codriver "pacenotes_ru\27-360.json" --language ru --audio-dir "audio_ru\routes\27-360"
 ```
 
 Mute the built-in WRC co-driver when testing the external one. The live process only decodes UDP,
