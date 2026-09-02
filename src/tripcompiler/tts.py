@@ -87,7 +87,16 @@ class CommandTtsProvider:
                 check=True,
                 capture_output=True,
             )
-        except (OSError, subprocess.CalledProcessError) as exc:
+        except subprocess.CalledProcessError as exc:
+            details = exc.stderr or exc.stdout
+            if isinstance(details, bytes):
+                details = details.decode(errors="replace")
+            if isinstance(details, str) and details.strip():
+                detail = details.strip().splitlines()[-1]
+            else:
+                detail = f"exit status {exc.returncode}"
+            raise TtsError(f"External TTS command failed: {detail}") from exc
+        except OSError as exc:
             raise TtsError(f"External TTS command failed: {exc}") from exc
         if not output_path.is_file():
             raise TtsError("External TTS command did not create the requested output file")

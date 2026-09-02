@@ -205,6 +205,13 @@ Both `Test-Path` commands must print `True`. Then build the Russian audio cache:
 tripcompiler prepare-wrc-voice "compiled_trips\wrc_20260830_124128\pace_notes.json" --output "compiled_trips\wrc_20260830_124128\audio-ru" --provider piper --language ru --piper-executable ".\.venv\Scripts\piper.exe" --piper-model "C:\voices\ru_RU-denis-medium.onnx"
 ```
 
+If Piper reports `INVALID_PROTOBUF` or `Protobuf parsing failed`, the ONNX download is incomplete.
+Force both voice files to be downloaded again, then repeat the cache command:
+
+```powershell
+python -m piper.download_voices --force-redownload --data-dir "C:\voices" ru_RU-denis-medium
+```
+
 Piper and its voice models are not bundled. Piper is GPL-3.0; the Denis voice model card identifies
 its source dataset as CC0. Review the engine and selected voice licenses before redistribution.
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -29,7 +30,7 @@ from tripcompiler.track import (
     load_track_profile,
     write_track_profile,
 )
-from tripcompiler.tts import prepare_audio_cache
+from tripcompiler.tts import CommandTtsProvider, TtsError, prepare_audio_cache
 from tripcompiler.wrc_catalog import enrich_wrc_metadata, load_wrc_catalog
 
 
@@ -316,3 +317,21 @@ class _FakeTts:
     def synthesize(self, text: str, language: str, output_path: Path) -> None:
         self.calls += 1
         output_path.write_bytes(f"{language}:{text}".encode())
+
+
+def test_command_tts_reports_subprocess_stderr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*args: object, **kwargs: object) -> None:
+        raise subprocess.CalledProcessError(
+            1,
+            ["piper"],
+            stderr="traceback\nONNX model Protobuf parsing failed",
+        )
+
+    monkeypatch.setattr("tripcompiler.tts.subprocess.run", fail)
+    provider = CommandTtsProvider(("piper", "-f", "{output}"), name="piper:test")
+
+    with pytest.raises(TtsError, match="ONNX model Protobuf parsing failed"):
+        provider.synthesize("test", "en", tmp_path / "test.wav")
